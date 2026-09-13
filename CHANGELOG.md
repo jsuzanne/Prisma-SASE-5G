@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.3.2] - 2026-09-13
+
+### Added & Improved
+- **Interactive Multi-Column Sorting in Group Modals**:
+  - Added interactive column headers (`Selection/Assigned`, `IMSI`, `IP Address`, `Device Label`, `APN`) in **Create 5G Identity Group** and **Edit 5G Identity Group** modals.
+  - Clicking any column header triggers sorting (`▲` / `▼`) while seamlessly preserving all selected checkbox states.
+- **Dynamic 5G Session Modal Button Prominence**:
+  - Context-aware action buttons: clicking **Detach** highlights the Detach action as primary (vibrant rose gradient), while clicking **Attach** highlights Attach (vibrant amber gradient).
+  - Replaced native browser confirm popups on SIM row detachment with the full 5G Session Telemetry window & live log console.
+- **Refined Group Modal Layout**:
+  - Rebalanced modal width and eliminated excessive white space between IP and APN columns.
+  - Aligned SIM card fields: `[Checkbox] [IMSI] [IP Address] [Device Label] [APN]` omitting generic equipment type text.
+
+---
+
 ## [2.3.1] - 2026-09-12
 
 ### Added

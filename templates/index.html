@@ -2527,7 +2527,7 @@
 
     <!-- MODAL 4: Create 5G Identity Group (SCM Style) -->
     <div id="modal-add-group" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-4">
-        <div class="glass-panel rounded-2xl max-w-md w-full p-6 space-y-5 border border-emerald-500/30 glow-panw">
+        <div class="glass-panel rounded-2xl max-w-xl w-full p-6 space-y-5 border border-emerald-500/30 glow-panw max-h-[90vh] overflow-y-auto custom-scrollbar">
             <div class="flex items-center justify-between pb-3 border-b border-white/10">
                 <div class="flex items-center space-x-2.5">
                     <div class="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
@@ -2559,14 +2559,33 @@
                     </select>
                 </div>
                 <div>
-                    <div class="flex items-center justify-between mb-1">
+                    <div class="flex items-center justify-between mb-1.5">
                         <label class="block text-gray-300 font-medium">Initial Member SIM Cards</label>
                         <span class="text-[10px] text-gray-400 font-mono">Optional assignment</span>
                     </div>
-                    <div id="add-group-sims-container" class="max-h-36 overflow-y-auto custom-scrollbar p-2 bg-gray-900/90 border border-white/10 rounded-xl space-y-1">
+                    <!-- Add Group Column Header -->
+                    <div class="group-sims-col-header flex items-center gap-2 px-3 py-1.5 bg-gray-950/90 border border-white/10 rounded-t-xl text-[10px] font-semibold text-gray-400 select-none">
+                        <div onclick="sortGroupModalSims('assigned', 'add')" class="w-7 shrink-0 flex items-center cursor-pointer hover:text-white" title="Sort by Selection">
+                            <i data-lucide="check-square" class="w-3.5 h-3.5"></i>
+                            <span id="add-group-sort-assigned" class="text-[9px] ml-0.5"></span>
+                        </div>
+                        <div onclick="sortGroupModalSims('imsi', 'add')" class="w-36 shrink-0 flex items-center gap-1 cursor-pointer hover:text-white" title="Sort by IMSI">
+                            <span>IMSI</span> <span id="add-group-sort-imsi" class="text-[9px]"></span>
+                        </div>
+                        <div onclick="sortGroupModalSims('ip', 'add')" class="w-28 shrink-0 flex items-center gap-1 cursor-pointer hover:text-white" title="Sort by IP Address">
+                            <span>IP Address</span> <span id="add-group-sort-ip" class="text-[9px]"></span>
+                        </div>
+                        <div onclick="sortGroupModalSims('label', 'add')" class="flex-1 min-w-0 flex items-center gap-1 cursor-pointer hover:text-white" title="Sort by Device Label">
+                            <span>Device Label</span> <span id="add-group-sort-label" class="text-[9px]"></span>
+                        </div>
+                        <div onclick="sortGroupModalSims('apn', 'add')" class="w-16 shrink-0 flex items-center justify-end gap-1 cursor-pointer hover:text-white text-right" title="Sort by APN">
+                            <span>APN</span> <span id="add-group-sort-apn" class="text-[9px]"></span>
+                        </div>
+                    </div>
+                    <div id="add-group-sims-container" class="max-h-56 overflow-y-auto custom-scrollbar p-1.5 bg-gray-900/90 border border-t-0 border-white/10 rounded-b-xl space-y-1">
                         <!-- Populated via updateAddGroupSimsList() -->
                     </div>
-                    <p class="text-[10px] text-gray-400 mt-1">Select SIM cards to assign to this group (none checked by default).</p>
+                    <p class="text-[10px] text-gray-400 mt-1">Select SIM cards to assign to this group (click column headers to sort).</p>
                 </div>
                 <div class="flex items-center justify-end gap-3 pt-3 border-t border-white/10">
                     <button type="button" onclick="closeAddGroupModal()" class="px-4 py-2 rounded-xl glass-panel text-gray-400 hover:text-white">Cancel</button>
@@ -2580,7 +2599,7 @@
 
     <!-- MODAL 4B: Edit 5G Identity Group -->
     <div id="modal-edit-group" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-4">
-        <div class="glass-panel rounded-2xl max-w-md w-full p-6 space-y-5 border border-blue-500/30 glow-cyan max-h-[90vh] overflow-y-auto custom-scrollbar">
+        <div class="glass-panel rounded-2xl max-w-xl w-full p-6 space-y-5 border border-blue-500/30 glow-cyan max-h-[90vh] overflow-y-auto custom-scrollbar">
             <div class="flex items-center justify-between pb-3 border-b border-white/10">
                 <div class="flex items-center space-x-2.5">
                     <div class="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
@@ -2610,14 +2629,33 @@
                     <textarea id="edit-group-desc" rows="3" placeholder="Describe the purpose, traffic profile, and zero-trust policies for this subscriber group..." class="w-full px-3.5 py-2 bg-gray-900 border border-white/10 rounded-xl text-gray-200 font-sans focus:border-blue-400 focus:outline-none leading-relaxed"></textarea>
                 </div>
                 <div>
-                    <div class="flex items-center justify-between mb-1">
+                    <div class="flex items-center justify-between mb-1.5">
                         <label class="block text-gray-300 font-medium">Member SIM Cards</label>
                         <span id="edit-group-sims-count" class="text-[10px] text-blue-400 font-mono">0 SIM(s) assigned</span>
                     </div>
-                    <div id="edit-group-sims-container" class="max-h-40 overflow-y-auto custom-scrollbar p-2 bg-gray-900/90 border border-white/10 rounded-xl space-y-1">
+                    <!-- Edit Group Column Header -->
+                    <div class="group-sims-col-header flex items-center gap-2 px-3 py-1.5 bg-gray-950/90 border border-white/10 rounded-t-xl text-[10px] font-semibold text-gray-400 select-none">
+                        <div onclick="sortGroupModalSims('assigned', 'edit')" class="w-7 shrink-0 flex items-center cursor-pointer hover:text-white" title="Sort by Assigned Status">
+                            <i data-lucide="check-square" class="w-3.5 h-3.5"></i>
+                            <span id="edit-group-sort-assigned" class="text-[9px] ml-0.5"></span>
+                        </div>
+                        <div onclick="sortGroupModalSims('imsi', 'edit')" class="w-36 shrink-0 flex items-center gap-1 cursor-pointer hover:text-white" title="Sort by IMSI">
+                            <span>IMSI</span> <span id="edit-group-sort-imsi" class="text-[9px]"></span>
+                        </div>
+                        <div onclick="sortGroupModalSims('ip', 'edit')" class="w-28 shrink-0 flex items-center gap-1 cursor-pointer hover:text-white" title="Sort by IP Address">
+                            <span>IP Address</span> <span id="edit-group-sort-ip" class="text-[9px]"></span>
+                        </div>
+                        <div onclick="sortGroupModalSims('label', 'edit')" class="flex-1 min-w-0 flex items-center gap-1 cursor-pointer hover:text-white" title="Sort by Device Label">
+                            <span>Device Label</span> <span id="edit-group-sort-label" class="text-[9px]"></span>
+                        </div>
+                        <div onclick="sortGroupModalSims('apn', 'edit')" class="w-16 shrink-0 flex items-center justify-end gap-1 cursor-pointer hover:text-white text-right" title="Sort by APN">
+                            <span>APN</span> <span id="edit-group-sort-apn" class="text-[9px]"></span>
+                        </div>
+                    </div>
+                    <div id="edit-group-sims-container" class="max-h-56 overflow-y-auto custom-scrollbar p-1.5 bg-gray-900/90 border border-t-0 border-white/10 rounded-b-xl space-y-1">
                         <!-- Populated via openEditGroupModal() -->
                     </div>
-                    <p class="text-[10px] text-gray-400 mt-1">Select SIM cards that belong to this Zero-Trust subscriber policy group.</p>
+                    <p class="text-[10px] text-gray-400 mt-1">Select SIM cards that belong to this Zero-Trust subscriber policy group (click column headers to sort).</p>
                 </div>
 
                 <div class="flex items-center justify-end gap-3 pt-3 border-t border-white/10">
@@ -3905,11 +3943,11 @@
                                     <i data-lucide="edit-3" class="w-3.5 h-3.5 inline"></i> Edit
                                 </button>
                                 ${isActive ? `
-                                    <button onclick="handleQuickDeregisterSession('${sim.imsi}', '${sim.imei || ''}', '${sim.apn || 'sasetest'}', '${sim.ipv4_addr || ''}')" class="px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-xs transition" title="Detach / Terminate 5G Session (Release IP)">
+                                    <button onclick="prefillSession('${sim.imsi}', '${sim.imei || ''}', '${sim.apn || 'sasetest'}', '${sim.ipv4_addr || sim.last_ip || ''}', 'detach')" class="px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-xs transition" title="Detach / Terminate 5G Session (Release IP)">
                                         <i data-lucide="power-off" class="w-3.5 h-3.5 inline"></i> Detach
                                     </button>
                                 ` : `
-                                    <button onclick="prefillSession('${sim.imsi}', '${sim.imei}', '${sim.apn}', '${sim.last_ip || sim.ipv4_addr || ''}')" class="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 text-xs transition" title="Connect / Attach 5G Session (Re-uses previous IP: ${sim.last_ip || 'Auto'})">
+                                    <button onclick="prefillSession('${sim.imsi}', '${sim.imei}', '${sim.apn}', '${sim.last_ip || sim.ipv4_addr || ''}', 'attach')" class="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 text-xs transition" title="Connect / Attach 5G Session (Re-uses previous IP: ${sim.last_ip || 'Auto'})">
                                         <i data-lucide="zap" class="w-3.5 h-3.5 inline"></i> Attach
                                     </button>
                                 `}
@@ -3953,11 +3991,11 @@
                                     <i data-lucide="edit-3" class="w-3.5 h-3.5 inline"></i> Edit
                                 </button>
                                 ${isActive ? `
-                                    <button onclick="handleQuickDeregisterSession('${sim.imsi}', '${sim.imei || ''}', '${sim.apn || 'sasetest'}', '${sim.ipv4_addr || ''}')" class="px-2 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-xs transition" title="Detach / Terminate 5G Session (Release IP)">
+                                    <button onclick="prefillSession('${sim.imsi}', '${sim.imei || ''}', '${sim.apn || 'sasetest'}', '${sim.ipv4_addr || sim.last_ip || ''}', 'detach')" class="px-2 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-xs transition" title="Detach / Terminate 5G Session (Release IP)">
                                         <i data-lucide="power-off" class="w-3.5 h-3.5 inline"></i> Detach
                                     </button>
                                 ` : `
-                                    <button onclick="prefillSession('${sim.imsi}', '${sim.imei}', '${sim.apn}', '${sim.last_ip || sim.ipv4_addr || ''}')" class="px-2 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 text-xs transition" title="Connect / Attach 5G Session (Re-uses previous IP: ${sim.last_ip || 'Auto'})">
+                                    <button onclick="prefillSession('${sim.imsi}', '${sim.imei}', '${sim.apn}', '${sim.last_ip || sim.ipv4_addr || ''}', 'attach')" class="px-2 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 text-xs transition" title="Connect / Attach 5G Session (Re-uses previous IP: ${sim.last_ip || 'Auto'})">
                                         <i data-lucide="zap" class="w-3.5 h-3.5 inline"></i> Attach
                                     </button>
                                 `}
@@ -4227,8 +4265,141 @@
             }
         }
 
-        // Add & Edit Group Modal Functions
-        function updateAddGroupSimsList() {
+        // Add & Edit Group Modal Functions & Sorting
+        let editGroupCurrentSims = [];
+        let editGroupCheckedIds = new Set();
+        let editGroupSortCol = 'assigned';
+        let editGroupSortDir = 'desc';
+
+        let addGroupSortCol = 'imsi';
+        let addGroupSortDir = 'asc';
+
+        function compareGroupSims(a, b, col, dir, checkedSet) {
+            let res = 0;
+            if (col === 'assigned') {
+                const idA = String(a.identity_id || a.id || a.imsi);
+                const idB = String(b.identity_id || b.id || b.imsi);
+                const chkA = checkedSet && (checkedSet.has(idA) || checkedSet.has(String(a.imsi)) || checkedSet.has(String(a.identity_id))) ? 1 : 0;
+                const chkB = checkedSet && (checkedSet.has(idB) || checkedSet.has(String(b.imsi)) || checkedSet.has(String(b.identity_id))) ? 1 : 0;
+                res = chkB - chkA;
+            } else if (col === 'ip') {
+                const ipA = (a.ipv4_addr || a.last_ip || '').split('.').map(n => parseInt(n, 10));
+                const ipB = (b.ipv4_addr || b.last_ip || '').split('.').map(n => parseInt(n, 10));
+                const validA = ipA.length === 4 && ipA.every(n => !isNaN(n));
+                const validB = ipB.length === 4 && ipB.every(n => !isNaN(n));
+                if (!validA && !validB) res = 0;
+                else if (!validA) res = 1;
+                else if (!validB) res = -1;
+                else {
+                    for (let i = 0; i < 4; i++) {
+                        if (ipA[i] !== ipB[i]) {
+                            res = ipA[i] - ipB[i];
+                            break;
+                        }
+                    }
+                }
+            } else if (col === 'label') {
+                const labelA = (a.custom_label || '').toLowerCase();
+                const labelB = (b.custom_label || '').toLowerCase();
+                if (!labelA && !labelB) res = 0;
+                else if (!labelA) res = 1;
+                else if (!labelB) res = -1;
+                else res = labelA.localeCompare(labelB);
+            } else if (col === 'apn') {
+                const apnA = (a.apn || '').toLowerCase();
+                const apnB = (b.apn || '').toLowerCase();
+                res = apnA.localeCompare(apnB);
+            } else {
+                // 'imsi'
+                const imsiA = a.imsi || '';
+                const imsiB = b.imsi || '';
+                res = imsiA.localeCompare(imsiB, undefined, { numeric: true });
+            }
+            return dir === 'asc' ? res : -res;
+        }
+
+        function updateGroupSortHeaderIcons(prefix, sortCol, sortDir) {
+            ['assigned', 'imsi', 'ip', 'label', 'apn'].forEach(col => {
+                const el = document.getElementById(`${prefix}-group-sort-${col}`);
+                if (el) {
+                    if (sortCol === col) {
+                        el.innerText = sortDir === 'asc' ? ' ▲' : ' ▼';
+                        el.className = 'text-cyan-400 font-bold text-[9px]';
+                    } else {
+                        el.innerText = '';
+                        el.className = 'text-gray-500 text-[9px]';
+                    }
+                }
+            });
+        }
+
+        function sortGroupModalSims(col, modalType = 'edit') {
+            if (modalType === 'edit') {
+                if (editGroupSortCol === col) {
+                    editGroupSortDir = editGroupSortDir === 'asc' ? 'desc' : 'asc';
+                } else {
+                    editGroupSortCol = col;
+                    editGroupSortDir = (col === 'assigned') ? 'desc' : 'asc';
+                }
+                const checkedBoxes = document.querySelectorAll('input[name="edit-group-sim-chk"]:checked');
+                editGroupCheckedIds = new Set(Array.from(checkedBoxes).map(cb => String(cb.value)));
+                renderEditGroupSimsList();
+            } else {
+                if (addGroupSortCol === col) {
+                    addGroupSortDir = addGroupSortDir === 'asc' ? 'desc' : 'asc';
+                } else {
+                    addGroupSortCol = col;
+                    addGroupSortDir = (col === 'assigned') ? 'desc' : 'asc';
+                }
+                const checkedBoxes = document.querySelectorAll('input[name="add-group-sim-chk"]:checked');
+                const addCheckedIds = new Set(Array.from(checkedBoxes).map(cb => String(cb.value)));
+                updateAddGroupSimsList(addCheckedIds);
+            }
+        }
+
+        function renderGroupSimRow(sim, isChecked, checkboxName, onchangeFn, checkColorClass = 'text-blue-500') {
+            const simVal = sim.identity_id || sim.id || sim.imsi;
+            
+            // 1. IP representation (Active 5G Session, Previous Allocated IP, or No IP)
+            let ipBadge = '';
+            if (sim.ipv4_addr) {
+                ipBadge = `<span class="text-emerald-400 font-semibold inline-flex items-center gap-1 font-mono text-[11px] whitespace-nowrap" title="Active 5G Session IP"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>${sim.ipv4_addr}</span>`;
+            } else if (sim.last_ip) {
+                ipBadge = `<span class="text-gray-400 inline-flex items-center gap-1 font-mono text-[10px] whitespace-nowrap" title="Previous Allocated IP"><span class="w-1.5 h-1.5 rounded-full bg-gray-500 shrink-0"></span>${sim.last_ip}</span>`;
+            } else {
+                ipBadge = `<span class="text-gray-500 text-[10px] font-mono whitespace-nowrap">No IP</span>`;
+            }
+
+            // 2. Device Label only (Demo Memo / Device Label)
+            let labelBadge = '';
+            if (sim.custom_label) {
+                labelBadge = `<span class="px-2 py-0.5 rounded-md text-[10px] font-sans font-medium bg-amber-500/15 text-amber-300 border border-amber-500/30 inline-flex items-center gap-1 whitespace-nowrap truncate max-w-[150px]" title="${sim.custom_label}"><i data-lucide="tag" class="w-2.5 h-2.5 shrink-0"></i><span class="truncate">${sim.custom_label}</span></span>`;
+            } else {
+                labelBadge = `<span class="text-gray-600 text-[10px] italic font-sans">-</span>`;
+            }
+
+            return `
+                <label class="flex items-center gap-2 p-2 rounded-xl bg-gray-950/70 hover:bg-gray-800/60 border border-white/5 cursor-pointer text-xs transition">
+                    <div class="w-7 shrink-0 flex items-center">
+                        <input type="checkbox" name="${checkboxName}" value="${simVal}" ${isChecked ? 'checked' : ''} onchange="${onchangeFn}" class="rounded border-gray-700 ${checkColorClass} focus:ring-0">
+                    </div>
+                    <div class="w-36 shrink-0 font-mono text-white font-semibold text-xs tracking-tight truncate" title="${sim.imsi}">
+                        ${sim.imsi}
+                    </div>
+                    <div class="w-28 shrink-0 flex items-center">
+                        ${ipBadge}
+                    </div>
+                    <div class="flex-1 min-w-0 flex items-center">
+                        ${labelBadge}
+                    </div>
+                    <div class="w-16 shrink-0 flex items-center justify-end">
+                        <span class="px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 text-[10px] font-mono whitespace-nowrap">${sim.apn || 'sasetest'}</span>
+                    </div>
+                </label>
+            `;
+        }
+
+        function updateAddGroupSimsList(preservedCheckedIds) {
             const tsgSelect = document.getElementById('add-group-tsg');
             const container = document.getElementById('add-group-sims-container');
             if (!container) return;
@@ -4248,19 +4419,19 @@
                 }
             }
 
+            const checkedSet = preservedCheckedIds || new Set();
             const simsToDisplay = (availableSims.length > 0 ? availableSims : allSIMs);
-            // No SIM selected by default (all unchecked)
-            container.innerHTML = simsToDisplay.map((sim) => `
-                <label class="flex items-center justify-between p-2 rounded-lg bg-gray-950/70 hover:bg-gray-800/60 border border-white/5 cursor-pointer text-xs transition">
-                    <div class="flex items-center gap-2">
-                        <input type="checkbox" name="add-group-sim-chk" value="${sim.id || sim.identity_id || sim.imsi}" class="rounded border-gray-700 text-emerald-500 focus:ring-0">
-                        <span class="font-mono text-white font-semibold">${sim.imsi}</span>
-                        ${sim.custom_label ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-sans bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">${sim.custom_label}</span>` : ''}
-                    </div>
-                    <span class="text-[10px] text-cyan-400 font-mono">${sim.apn || 'sasetest'}</span>
-                </label>
-            `).join('');
+            const sorted = [...simsToDisplay].sort((a, b) => 
+                compareGroupSims(a, b, addGroupSortCol, addGroupSortDir, checkedSet)
+            );
 
+            container.innerHTML = sorted.map((sim) => {
+                const simVal = String(sim.id || sim.identity_id || sim.imsi);
+                const isChecked = checkedSet.has(simVal);
+                return renderGroupSimRow(sim, isChecked, 'add-group-sim-chk', '', 'text-emerald-500');
+            }).join('');
+
+            updateGroupSortHeaderIcons('add', addGroupSortCol, addGroupSortDir);
             lucide.createIcons();
         }
 
@@ -4271,6 +4442,8 @@
             }
             document.getElementById('add-group-name').value = '';
             document.getElementById('add-group-desc').value = '';
+            addGroupSortCol = 'imsi';
+            addGroupSortDir = 'asc';
             updateAddGroupSimsList();
             document.getElementById('modal-add-group').classList.remove('hidden');
             lucide.createIcons();
@@ -4323,6 +4496,35 @@
             }
         }
 
+        function renderEditGroupSimsList() {
+            const container = document.getElementById('edit-group-sims-container');
+            if (!container) return;
+
+            if (editGroupCurrentSims.length === 0) {
+                container.innerHTML = `<div class="p-3 text-center text-gray-500 text-xs">No registered SIM cards found.</div>`;
+                return;
+            }
+
+            const sorted = [...editGroupCurrentSims].sort((a, b) => 
+                compareGroupSims(a, b, editGroupSortCol, editGroupSortDir, editGroupCheckedIds)
+            );
+
+            container.innerHTML = sorted.map(sim => {
+                const simVal = String(sim.identity_id || sim.id || sim.imsi);
+                const isMember = editGroupCheckedIds.has(simVal) || editGroupCheckedIds.has(String(sim.imsi)) || editGroupCheckedIds.has(String(sim.identity_id));
+                return renderGroupSimRow(sim, isMember, 'edit-group-sim-chk', 'onEditGroupCheckboxChange()', 'text-blue-500');
+            }).join('');
+
+            updateGroupSortHeaderIcons('edit', editGroupSortCol, editGroupSortDir);
+            lucide.createIcons();
+        }
+
+        function onEditGroupCheckboxChange() {
+            const checkedBoxes = document.querySelectorAll('input[name="edit-group-sim-chk"]:checked');
+            editGroupCheckedIds = new Set(Array.from(checkedBoxes).map(cb => String(cb.value)));
+            updateEditGroupMemberCount();
+        }
+
         function openEditGroupModal(groupId) {
             const grp = allGroups.find(g => String(g.group_id) === String(groupId));
             if (!grp) {
@@ -4350,28 +4552,19 @@
                 return false;
             }
 
-            const container = document.getElementById('edit-group-sims-container');
-            if (container) {
-                if (allSIMs.length === 0) {
-                    container.innerHTML = `<div class="p-3 text-center text-gray-500 text-xs">No registered SIM cards found.</div>`;
-                } else {
-                    container.innerHTML = allSIMs.map(sim => {
-                        const isMember = isSimInGroup(sim);
-                        const simVal = sim.identity_id || sim.id || sim.imsi;
-                        return `
-                            <label class="flex items-center justify-between p-2 rounded-lg bg-gray-950/70 hover:bg-gray-800/60 border border-white/5 cursor-pointer text-xs transition">
-                                <div class="flex items-center gap-2">
-                                    <input type="checkbox" name="edit-group-sim-chk" value="${simVal}" ${isMember ? 'checked' : ''} onchange="updateEditGroupMemberCount()" class="rounded border-gray-700 text-blue-500 focus:ring-0">
-                                    <span class="font-mono text-white font-semibold">${sim.imsi}</span>
-                                    ${sim.custom_label ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-sans bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">${sim.custom_label}</span>` : ''}
-                                </div>
-                                <span class="text-[10px] text-cyan-400 font-mono">${sim.apn || 'sasetest'}</span>
-                            </label>
-                        `;
-                    }).join('');
+            editGroupCheckedIds = new Set();
+            allSIMs.forEach(sim => {
+                if (isSimInGroup(sim)) {
+                    const simVal = String(sim.identity_id || sim.id || sim.imsi);
+                    editGroupCheckedIds.add(simVal);
                 }
-            }
+            });
 
+            editGroupCurrentSims = allSIMs;
+            editGroupSortCol = 'assigned';
+            editGroupSortDir = 'desc';
+
+            renderEditGroupSimsList();
             updateEditGroupMemberCount();
             document.getElementById('modal-edit-group').classList.remove('hidden');
             lucide.createIcons();
@@ -4750,7 +4943,24 @@
             }
         }
 
-        function openSessionModal(imsi, imei, apn, suggestedIp) {
+        let currentSessionMode = 'attach';
+
+        function setSessionModalButtonMode(mode) {
+            currentSessionMode = mode || 'attach';
+            const btnAttach = document.getElementById('btn-register-session');
+            const btnDetach = document.getElementById('btn-deregister-session');
+            if (!btnAttach || !btnDetach) return;
+
+            if (currentSessionMode === 'detach') {
+                btnDetach.className = "w-full py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-400 hover:to-red-500 text-white font-semibold shadow-lg shadow-rose-900/30 transition flex items-center justify-center gap-2 cursor-pointer";
+                btnAttach.className = "w-full py-2.5 rounded-xl bg-gray-800/90 hover:bg-amber-950/80 border border-amber-500/30 text-amber-300 font-semibold transition flex items-center justify-center gap-2 cursor-pointer";
+            } else {
+                btnAttach.className = "w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-semibold shadow-lg shadow-amber-900/30 transition flex items-center justify-center gap-2 cursor-pointer";
+                btnDetach.className = "w-full py-2.5 rounded-xl bg-gray-800/90 hover:bg-rose-950/80 border border-rose-500/30 text-rose-300 font-semibold transition flex items-center justify-center gap-2 cursor-pointer";
+            }
+        }
+
+        function openSessionModal(imsi, imei, apn, suggestedIp, initialMode) {
             const modal = document.getElementById('modal-session');
             if (!modal) return;
 
@@ -4764,11 +4974,9 @@
             if (apnInput) apnInput.value = apn || 'sasetest';
 
             let ipToSet = suggestedIp;
-            if (!ipToSet && imsi) {
-                const matched = allSIMs.find(s => s.imsi === imsi);
-                if (matched) {
-                    ipToSet = matched.last_ip || matched.ipv4_addr;
-                }
+            const matched = imsi ? allSIMs.find(s => s.imsi === imsi) : null;
+            if (!ipToSet && matched) {
+                ipToSet = matched.ipv4_addr || matched.last_ip;
             }
 
             if (ipToSet) {
@@ -4780,6 +4988,22 @@
                 autoFillNextSessionIP();
             }
 
+            // Set button prominence based on mode / active session state
+            let mode = initialMode;
+            if (!mode) {
+                if (matched && (matched.status === 'Active' || Boolean(matched.ipv4_addr))) {
+                    mode = 'detach';
+                } else {
+                    mode = 'attach';
+                }
+            }
+            setSessionModalButtonMode(mode);
+
+            const logConsole = document.getElementById('session-log-console');
+            if (logConsole) {
+                logConsole.innerHTML = `<div class="text-gray-500">// Ready to ${mode === 'detach' ? 'detach / release' : 'attach / register'} 5G subscriber session${imsi ? ` for IMSI ${imsi}` : ''}...</div>`;
+            }
+
             modal.classList.remove('hidden');
             lucide.createIcons();
         }
@@ -4789,8 +5013,8 @@
             if (modal) modal.classList.add('hidden');
         }
 
-        async function prefillSession(imsi, imei, apn, suggestedIp) {
-            openSessionModal(imsi, imei, apn, suggestedIp);
+        async function prefillSession(imsi, imei, apn, suggestedIp, initialMode) {
+            openSessionModal(imsi, imei, apn, suggestedIp, initialMode);
         }
 
         async function handleSessionSubmit(e) {
@@ -4823,6 +5047,7 @@
                 if (res.ok && data.success) {
                     logConsole.innerHTML += `<div class="text-emerald-400 font-mono">> [${new Date().toLocaleTimeString()}] ✓ Telemetry Accepted (HTTP ${data.status_code || 202}). IP ${ip} mapped to IMSI ${imsi}.</div>`;
                     showToast("5G Session Attached", `IP ${ip} bound to IMSI ${imsi}`);
+                    setSessionModalButtonMode('detach');
                     await fetchSIMs();
                     await loadThroughputChart();
                 } else {
@@ -4835,7 +5060,7 @@
             } finally {
                 logConsole.scrollTop = logConsole.scrollHeight;
                 btn.disabled = false;
-                btn.innerHTML = '<i data-lucide="zap" class="w-4 h-4"></i> Attach Session';
+                btn.innerHTML = '<i data-lucide="zap" class="w-4 h-4"></i> Attach';
                 lucide.createIcons();
             }
         }
@@ -4869,6 +5094,7 @@
                 if (res.ok && data.success) {
                     logConsole.innerHTML += `<div class="text-emerald-400 font-mono">> [${new Date().toLocaleTimeString()}] ✓ 5G Session Terminated cleanly (HTTP ${data.status_code || 202}). IP ${ip} released.</div>`;
                     showToast("5G Session Detached", `IP ${ip} released for IMSI ${imsi}`);
+                    setSessionModalButtonMode('attach');
                     await fetchSIMs();
                     await loadThroughputChart();
                 } else {
@@ -4881,38 +5107,13 @@
             } finally {
                 logConsole.scrollTop = logConsole.scrollHeight;
                 btn.disabled = false;
-                btn.innerHTML = '<i data-lucide="power-off" class="w-4 h-4"></i> Detach Session';
+                btn.innerHTML = '<i data-lucide="power-off" class="w-4 h-4"></i> Detach';
                 lucide.createIcons();
             }
         }
 
         async function handleQuickDeregisterSession(imsi, imei, apn, ip) {
-            if (!confirm(`Do you want to detach / deregister the active 5G session for SIM ${imsi} (IP ${ip || 'N/A'})?`)) {
-                return;
-            }
-            try {
-                const res = await fetch('/api/sessions/deregister', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        imsi,
-                        imei: imei || '860123000000000',
-                        apn: apn || 'sasetest',
-                        ip_type: 'IPv4',
-                        ipv4_addr: ip || '10.56.0.195'
-                    })
-                });
-                const data = await res.json();
-                if (res.ok && data.success) {
-                    showToast("5G Session Detached", `Released active session IP for SIM ${imsi}`);
-                    await fetchSIMs();
-                    await loadThroughputChart();
-                } else {
-                    showToast("Detach Failed", data.detail || "Error deregistering session", true);
-                }
-            } catch (err) {
-                showToast("Network Error", err.message, true);
-            }
+            openSessionModal(imsi, imei, apn, ip, 'detach');
         }
 
         // Lifecycle Runner
