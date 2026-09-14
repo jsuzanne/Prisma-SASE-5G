@@ -295,6 +295,139 @@
             color: #334155 !important;
         }
 
+        /* ==========================================================================
+           HEALTH BOX & DEGRADED ALERT BANNER IN LIGHT MODE
+           ========================================================================== */
+        html.light #modal-health-box > div {
+            background-color: #ffffff !important;
+            border-color: #cbd5e1 !important;
+            box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25) !important;
+        }
+
+        html.light #modal-health-box .border-b,
+        html.light #modal-health-box .border-t {
+            background: #f8fafc !important;
+            border-color: #e2e8f0 !important;
+        }
+
+        html.light #modal-health-box h3 {
+            color: #0f172a !important;
+        }
+
+        html.light #modal-health-box p {
+            color: #64748b !important;
+        }
+
+        html.light #summary-health-alert-banner {
+            background-color: #fffbeb !important;
+            border-color: #fcd34d !important;
+            color: #92400e !important;
+            box-shadow: 0 4px 6px -1px rgba(245, 158, 11, 0.1) !important;
+        }
+
+        html.light #summary-health-alert-banner .font-bold {
+            color: #78350f !important;
+        }
+
+        html.light #summary-health-alert-banner p {
+            color: #92400e !important;
+        }
+
+        html.light #summary-health-alert-banner .bg-amber-500\/20 {
+            background-color: #fef3c7 !important;
+            border-color: #fde68a !important;
+            color: #b45309 !important;
+        }
+
+        /* Health Overall Summary Card in Light Mode */
+        html.light #health-overall-summary-card.bg-amber-950\/40,
+        html.light #health-overall-summary-card.bg-amber-950\/30 {
+            background-color: #fffbeb !important;
+            border-color: #fcd34d !important;
+            color: #92400e !important;
+        }
+        html.light #health-overall-summary-card.bg-emerald-950\/40,
+        html.light #health-overall-summary-card.bg-emerald-950\/30 {
+            background-color: #f0fdf4 !important;
+            border-color: #bbf7d0 !important;
+            color: #166534 !important;
+        }
+        html.light #health-overall-summary-card.bg-purple-950\/40,
+        html.light #health-overall-summary-card.bg-purple-950\/30 {
+            background-color: #faf5ff !important;
+            border-color: #e9d5ff !important;
+            color: #6b21a8 !important;
+        }
+        html.light #health-overall-summary-card.bg-red-950\/40,
+        html.light #health-overall-summary-card.bg-red-950\/30 {
+            background-color: #fef2f2 !important;
+            border-color: #fecaca !important;
+            color: #991b1b !important;
+        }
+
+        html.light #health-overall-title {
+            color: inherit !important;
+        }
+        html.light #health-overall-desc {
+            color: inherit !important;
+            opacity: 0.95;
+        }
+
+        /* Health Services List Cards in Light Mode */
+        html.light #health-services-list .glass-panel {
+            background-color: #ffffff !important;
+            border-color: #e2e8f0 !important;
+        }
+        html.light #health-services-list .glass-panel:hover {
+            border-color: #cbd5e1 !important;
+            background-color: #f8fafc !important;
+        }
+        html.light #health-services-list .service-name {
+            color: #0f172a !important;
+        }
+        html.light #health-services-list .endpoint-url {
+            color: #475569 !important;
+        }
+        html.light #health-services-list .endpoint-method {
+            color: #0284c7 !important;
+        }
+        html.light #health-services-list .service-error-text {
+            color: #b45309 !important;
+            font-weight: 600 !important;
+        }
+
+        /* Status & Data Source Badges in Light Mode */
+        html.light #health-services-list .bg-emerald-500\/10,
+        html.light #health-modal-badge.bg-emerald-500\/20 {
+            background-color: #ecfdf5 !important;
+            border-color: #a7f3d0 !important;
+            color: #065f46 !important;
+        }
+        html.light #health-services-list .bg-amber-500\/10,
+        html.light #health-services-list .bg-amber-500\/20,
+        html.light #health-modal-badge.bg-amber-500\/20 {
+            background-color: #fffbeb !important;
+            border-color: #fde68a !important;
+            color: #92400e !important;
+        }
+        html.light #health-services-list .bg-purple-500\/10,
+        html.light #health-modal-badge.bg-purple-500\/20 {
+            background-color: #faf5ff !important;
+            border-color: #e9d5ff !important;
+            color: #6b21a8 !important;
+        }
+        html.light #health-services-list .bg-red-500\/10,
+        html.light #health-modal-badge.bg-red-500\/20 {
+            background-color: #fef2f2 !important;
+            border-color: #fecaca !important;
+            color: #991b1b !important;
+        }
+        html.light #health-services-list .bg-white\/5 {
+            background-color: #f1f5f9 !important;
+            border-color: #cbd5e1 !important;
+            color: #475569 !important;
+        }
+
         /* Form Inputs, Selects & Tables */
         html.light input[type="text"],
         html.light input[type="password"],
@@ -4286,20 +4419,20 @@
                 }
 
                 return `
-                    <div class="p-3.5 rounded-xl glass-panel border border-white/10 hover:border-white/20 transition flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                        <div class="space-y-1 flex-1">
-                            <div class="flex items-center gap-2">
+                    <div class="p-3.5 rounded-xl glass-panel border border-white/10 hover:border-white/20 transition flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+                        <div class="space-y-1.5 flex-1 min-w-0">
+                            <div class="flex flex-wrap items-center gap-2">
                                 <span class="w-2 h-2 rounded-full ${dotClass}"></span>
-                                <span class="text-xs font-bold text-white">${s.name}</span>
+                                <span class="text-xs font-bold text-white service-name">${s.name}</span>
                                 <span class="px-2 py-0.5 rounded text-[10px] font-mono border ${badgeClass}">${s.status_text}</span>
-                                ${s.duration_ms > 0 ? `<span class="text-[10px] font-mono text-gray-400">${s.duration_ms}ms</span>` : ''}
+                                ${s.duration_ms > 0 ? `<span class="text-[10px] font-mono text-gray-400 font-semibold">${s.duration_ms}ms</span>` : ''}
                             </div>
-                            <div class="text-[11px] text-gray-400 font-mono truncate max-w-xl" title="${s.endpoint}">
-                                <span class="text-cyan-400 font-bold">${s.method}</span> ${s.endpoint}
+                            <div class="text-[11px] font-mono truncate" title="${s.endpoint}">
+                                <span class="font-bold endpoint-method">${s.method}</span> <span class="endpoint-url">${s.endpoint}</span>
                             </div>
-                            ${s.error ? `<div class="text-[10px] text-amber-300 font-mono mt-0.5">⚠️ ${escapeHtml(s.error)}</div>` : ''}
+                            ${s.error ? `<div class="text-[11px] font-mono mt-0.5 service-error-text">⚠️ ${escapeHtml(s.error)}</div>` : ''}
                         </div>
-                        <div class="flex items-center gap-2 self-end sm:self-center shrink-0">
+                        <div class="flex flex-wrap items-center gap-2 self-start md:self-center shrink-0">
                             <span class="px-2.5 py-1 rounded-lg text-[10px] font-semibold border ${sourceBadge}">
                                 Data Source: ${s.data_source}
                             </span>
