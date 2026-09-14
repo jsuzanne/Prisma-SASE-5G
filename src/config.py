@@ -59,9 +59,12 @@ class Config:
     default_apn: str = "sasetest"
     default_ip_type: str = "IPv4"
     ue_cidr_blocks: str = "10.56.0.192/27,10.56.0.224/27"
+    standalone_mode: bool = False  # False = Live SCM Cloud API (default), True = Standalone Demo Sandbox
 
     def validate(self) -> None:
-        """Validate that either a static token or OAuth2 credentials (client_id, client_secret, tsg_id) are provided."""
+        """Validate that either a static token, OAuth2 credentials, or standalone mode are enabled."""
+        if self.standalone_mode:
+            return
         if self.auth_token:
             return
 
@@ -90,6 +93,12 @@ class Config:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Config":
         """Construct Config from a dictionary supporting camelCase, snake_case, and UPPERCASE keys."""
+        raw_standalone = data.get("standalone_mode") or data.get("PANW_STANDALONE_MODE") or data.get("standaloneMode") or False
+        if isinstance(raw_standalone, str):
+            standalone_val = raw_standalone.lower() in ("true", "1", "yes", "on")
+        else:
+            standalone_val = bool(raw_standalone)
+
         return cls(
             client_id=data.get("client_id") or data.get("PANW_CLIENT_ID") or data.get("clientId"),
             client_secret=data.get("client_secret") or data.get("PANW_CLIENT_SECRET") or data.get("clientSecret"),
@@ -100,6 +109,7 @@ class Config:
             default_apn=data.get("default_apn") or data.get("DEFAULT_APN") or data.get("defaultApn") or "sasetest",
             default_ip_type=data.get("default_ip_type") or data.get("DEFAULT_IP_TYPE") or data.get("defaultIpType") or "IPv4",
             ue_cidr_blocks=data.get("ue_cidr_blocks") or data.get("PANW_UE_CIDR_BLOCKS") or data.get("UE_CIDR_BLOCKS") or data.get("ueCidrBlocks") or "10.56.0.192/27,10.56.0.224/27",
+            standalone_mode=standalone_val,
         )
 
 
@@ -575,5 +585,202 @@ def save_cached_groups(groups: List[Dict[str, Any]], target_dir: Optional[Union[
     """Save user group list snapshot to cached_groups.json."""
     f = get_cached_groups_file(target_dir)
     f.write_text(json.dumps(groups, indent=2), encoding="utf-8")
+
+
+def export_demo_pack(scenario_name: str = "Prisma SASE 5G Fleet Snapshot", target_dir: Optional[Union[str, Path]] = None) -> Dict[str, Any]:
+    """Export the complete current state (SIMs, metadata, sessions, groups) as a portable Demo Pack JSON."""
+    import time
+    cfg = load_config(target_dir)
+    return {
+        "pack_version": "1.0",
+        "scenario_name": scenario_name,
+        "exported_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "tenant_info": {
+            "root_tsg_id": cfg.tsg_id or "1965438697",
+            "root_tsg_name": "SP-5G-POC2-Transatel",
+            "active_tsg_id": "1291887562",
+            "active_tenant_name": "Transatel demo",
+            "default_apn": cfg.default_apn or "sasetest",
+            "default_ip_type": cfg.default_ip_type or "IPv4",
+            "ue_cidr_blocks": cfg.ue_cidr_blocks or "10.56.0.192/27,10.56.0.224/27",
+        },
+        "sim_metadata": load_sim_metadata(target_dir),
+        "active_sessions": load_active_sessions(target_dir),
+        "group_metadata": load_group_metadata(target_dir),
+        "cached_ues": load_cached_ues(target_dir),
+        "cached_groups": load_cached_groups(target_dir),
+    }
+
+
+def import_demo_pack(pack_data: Dict[str, Any], target_dir: Optional[Union[str, Path]] = None) -> Dict[str, Any]:
+    """Import and apply a Demo Pack JSON into persistent local state."""
+    if not isinstance(pack_data, dict):
+        raise ValueError("Invalid Demo Pack format: expected JSON root object.")
+
+    sim_meta = pack_data.get("sim_metadata", {})
+    if isinstance(sim_meta, dict):
+        save_sim_metadata(sim_meta, target_dir)
+
+    active_sess = pack_data.get("active_sessions", {})
+    if isinstance(active_sess, dict):
+        save_active_sessions(active_sess, target_dir)
+
+    grp_meta = pack_data.get("group_metadata", {})
+    if isinstance(grp_meta, dict):
+        save_group_metadata(grp_meta, target_dir)
+
+    cached_ues = pack_data.get("cached_ues", [])
+    if isinstance(cached_ues, list):
+        save_cached_ues(cached_ues, target_dir)
+
+    cached_groups = pack_data.get("cached_groups", [])
+    if isinstance(cached_groups, list):
+        save_cached_groups(cached_groups, target_dir)
+
+    # If tenant info includes default APN or CIDRs, keep them
+    tenant_info = pack_data.get("tenant_info", {})
+    if isinstance(tenant_info, dict) and tenant_info.get("default_apn"):
+        cfg = load_config(target_dir)
+        if tenant_info.get("default_apn"):
+            cfg.default_apn = tenant_info["default_apn"]
+        if tenant_info.get("ue_cidr_blocks"):
+            cfg.ue_cidr_blocks = tenant_info["ue_cidr_blocks"]
+        save_config(cfg, target_dir)
+
+    return {
+        "success": True,
+        "scenario_name": pack_data.get("scenario_name", "Imported Fleet"),
+        "sims_count": len(sim_meta) or len(cached_ues) or len(active_sess),
+        "active_sessions_count": len(active_sess),
+        "groups_count": len(cached_groups) or len(grp_meta),
+    }
+
+
+BUILTIN_SCENARIOS: Dict[str, Dict[str, Any]] = {
+    "retail_supermarket": {
+        "id": "retail_supermarket",
+        "name": "Retail & Supermarket Fleet (SIDO Live Scenario)",
+        "icon": "shopping-cart",
+        "vertical": "retail",
+        "description": "14 SIMs across Ingenico Smart POS terminals, Self-Checkout Kiosks, Zebra Barcode Scanners, and Store RFID Gates.",
+        "sim_metadata": {
+            "208956167163949": {"vertical": "retail", "device_type": "4K Digital Signage Edge Player", "icon": "credit-card", "custom_label": "POS-Display-01", "last_ip": "10.56.0.193"},
+            "208950391678715": {"vertical": "retail", "device_type": "Ingenico Smart POS Terminal", "icon": "credit-card", "custom_label": "Lane-POS-01", "last_ip": "10.56.0.194"},
+            "208954273357404": {"vertical": "retail", "device_type": "Interactive Self-Checkout Kiosk", "icon": "credit-card", "custom_label": "SelfCheckout-A", "last_ip": "10.56.0.196"},
+            "208956993452553": {"vertical": "retail", "device_type": "Zebra Handheld Barcode Scanner", "icon": "credit-card", "custom_label": "Warehouse-Gun-1", "last_ip": "10.56.0.197"},
+            "901370007299136": {"vertical": "retail", "device_type": "Interactive Self-Checkout Kiosk", "icon": "credit-card", "custom_label": "SelfCheckout-B", "last_ip": "10.56.0.199"},
+            "901370007299147": {"vertical": "retail", "device_type": "4K Digital Signage Edge Player", "icon": "credit-card", "custom_label": "POS-Display-02", "last_ip": "10.56.0.200"},
+            "901370007299137": {"vertical": "retail", "device_type": "Zebra Handheld Barcode Scanner", "icon": "credit-card", "custom_label": "Warehouse-Gun-2", "last_ip": "10.56.0.201"},
+            "901370007299138": {"vertical": "retail", "device_type": "Store Inventory RFID Gate", "icon": "credit-card", "custom_label": "Dock-RFID-East", "last_ip": "10.56.0.202"},
+            "901370001420683": {"vertical": "retail", "device_type": "Ingenico Smart POS Terminal", "icon": "credit-card", "custom_label": "Spare-POS-03"},
+            "901370001420693": {"vertical": "retail", "device_type": "Interactive Self-Checkout Kiosk", "icon": "credit-card", "custom_label": "Spare-Kiosk-C"},
+            "901370001420692": {"vertical": "retail", "device_type": "Ingenico Smart POS Terminal", "icon": "credit-card", "custom_label": "Drive-POS-04"},
+            "901370001420700": {"vertical": "retail", "device_type": "Interactive Self-Checkout Kiosk", "icon": "credit-card", "custom_label": "SelfCheckout-D"},
+            "901370001420701": {"vertical": "retail", "device_type": "Zebra Handheld Barcode Scanner", "icon": "credit-card", "custom_label": "Floor-Scanner-3"}
+        },
+        "active_sessions": {
+            "208956167163949": {"ipv4_addr": "10.56.0.193", "apn": "sasetest", "status": "Active", "region": "europe-west9", "tenant_status": "Yes"},
+            "208950391678715": {"ipv4_addr": "10.56.0.194", "apn": "sasetest", "status": "Active", "region": "europe-west9", "tenant_status": "Yes"},
+            "208954273357404": {"ipv4_addr": "10.56.0.196", "apn": "sasetest", "status": "Active", "region": "europe-west9", "tenant_status": "Yes"},
+            "208956993452553": {"ipv4_addr": "10.56.0.197", "apn": "sasetest", "status": "Active", "region": "europe-west9", "tenant_status": "Yes"},
+            "901370007299136": {"ipv4_addr": "10.56.0.199", "apn": "sase", "status": "Active", "region": "europe-west9", "tenant_status": "Yes"},
+            "901370007299147": {"ipv4_addr": "10.56.0.200", "apn": "sase", "status": "Active", "region": "europe-west9", "tenant_status": "Yes"},
+            "901370007299137": {"ipv4_addr": "10.56.0.201", "apn": "sase", "status": "Active", "region": "europe-west9", "tenant_status": "Yes"},
+            "901370007299138": {"ipv4_addr": "10.56.0.202", "apn": "sase", "status": "Active", "region": "europe-west9", "tenant_status": "Yes"}
+        }
+    },
+    "smart_factory": {
+        "id": "smart_factory",
+        "name": "Smart Factory & Industry 4.0 Fleet",
+        "icon": "bot",
+        "vertical": "manufacturing",
+        "description": "12 SIMs across Autonomous AGV Logistics Robots, Kuka 6-Axis Arms, Siemens S7 PLCs, and Acoustic Vibration Sensors.",
+        "sim_metadata": {
+            "208950000000001": {"vertical": "manufacturing", "device_type": "AGV Autonomous Logistics Robot", "icon": "bot", "custom_label": "AGV-Fleet-Alpha", "last_ip": "10.56.0.193"},
+            "208950000000002": {"vertical": "manufacturing", "device_type": "AGV Autonomous Logistics Robot", "icon": "bot", "custom_label": "AGV-Fleet-Beta", "last_ip": "10.56.0.194"},
+            "208950000000003": {"vertical": "manufacturing", "device_type": "Kuka 6-Axis Welding Robotic Arm", "icon": "bot", "custom_label": "Arm-Cell-01", "last_ip": "10.56.0.195"},
+            "208950000000004": {"vertical": "manufacturing", "device_type": "Siemens S7 Industrial PLC Gateway", "icon": "bot", "custom_label": "PLC-Line-A", "last_ip": "10.56.0.196"},
+            "208950000000005": {"vertical": "manufacturing", "device_type": "High-Precision Acoustic Vibration Sensor", "icon": "bot", "custom_label": "Sensor-Turbine-1", "last_ip": "10.56.0.197"},
+            "208950000000006": {"vertical": "manufacturing", "device_type": "High-Precision Acoustic Vibration Sensor", "icon": "bot", "custom_label": "Sensor-Pump-4", "last_ip": "10.56.0.198"},
+            "208950000000007": {"vertical": "manufacturing", "device_type": "Machine-Vision Quality Inspection Camera", "icon": "bot", "custom_label": "Vision-QC-01", "last_ip": "10.56.0.199"},
+            "208950000000008": {"vertical": "manufacturing", "device_type": "Predictive Bearing Telemetry Node", "icon": "bot", "custom_label": "Bearing-Node-2", "last_ip": "10.56.0.200"},
+            "208950000000009": {"vertical": "manufacturing", "device_type": "AGV Autonomous Logistics Robot", "icon": "bot", "custom_label": "AGV-Standby-03"},
+            "208950000000010": {"vertical": "manufacturing", "device_type": "Siemens S7 Industrial PLC Gateway", "icon": "bot", "custom_label": "PLC-Line-B-Backup"},
+            "208950000000011": {"vertical": "manufacturing", "device_type": "Kuka 6-Axis Welding Robotic Arm", "icon": "bot", "custom_label": "Arm-Cell-02"},
+            "208950000000012": {"vertical": "manufacturing", "device_type": "High-Precision Acoustic Vibration Sensor", "icon": "bot", "custom_label": "Sensor-Hydraulic-9"}
+        },
+        "active_sessions": {
+            "208950000000001": {"ipv4_addr": "10.56.0.193", "apn": "sasetest", "status": "Active", "region": "europe-west9", "tenant_status": "Yes"},
+            "208950000000002": {"ipv4_addr": "10.56.0.194", "apn": "sasetest", "status": "Active", "region": "europe-west9", "tenant_status": "Yes"},
+            "208950000000003": {"ipv4_addr": "10.56.0.195", "apn": "sasetest", "status": "Active", "region": "europe-west9", "tenant_status": "Yes"},
+            "208950000000004": {"ipv4_addr": "10.56.0.196", "apn": "sasetest", "status": "Active", "region": "europe-west9", "tenant_status": "Yes"},
+            "208950000000005": {"ipv4_addr": "10.56.0.197", "apn": "sasetest", "status": "Active", "region": "europe-west9", "tenant_status": "Yes"},
+            "208950000000006": {"ipv4_addr": "10.56.0.198", "apn": "sasetest", "status": "Active", "region": "europe-west9", "tenant_status": "Yes"},
+            "208950000000007": {"ipv4_addr": "10.56.0.199", "apn": "sasetest", "status": "Active", "region": "europe-west9", "tenant_status": "Yes"},
+            "208950000000008": {"ipv4_addr": "10.56.0.200", "apn": "sasetest", "status": "Active", "region": "europe-west9", "tenant_status": "Yes"}
+        }
+    },
+    "ev_infrastructure": {
+        "id": "ev_infrastructure",
+        "name": "EV Infrastructure & Smart Grid Hub",
+        "icon": "zap",
+        "vertical": "ev_infrastructure",
+        "description": "10 SIMs across 350kW Ultra-Fast Chargers, Smart Grid Load Balancers, Fleet Depot Controllers, and OCPI Payment Terminals.",
+        "sim_metadata": {
+            "208950000000101": {"vertical": "ev_infrastructure", "device_type": "Ultra-Fast Hub Power Unit (350kW)", "icon": "zap", "custom_label": "EVSE-Charger-01", "last_ip": "10.56.0.193"},
+            "208950000000102": {"vertical": "ev_infrastructure", "device_type": "Ultra-Fast Hub Power Unit (350kW)", "icon": "zap", "custom_label": "EVSE-Charger-02", "last_ip": "10.56.0.194"},
+            "208950000000103": {"vertical": "ev_infrastructure", "device_type": "EV Smart Grid Load Balancer", "icon": "zap", "custom_label": "Grid-Balancer-North", "last_ip": "10.56.0.195"},
+            "208950000000104": {"vertical": "ev_infrastructure", "device_type": "Fleet Depot Charging Controller", "icon": "zap", "custom_label": "Depot-Master-Bus", "last_ip": "10.56.0.196"},
+            "208950000000105": {"vertical": "ev_infrastructure", "device_type": "Payment & RFID Authorizer Gateway", "icon": "zap", "custom_label": "OCPI-Payment-01", "last_ip": "10.56.0.197"},
+            "208950000000106": {"vertical": "ev_infrastructure", "device_type": "EVSE Fast-Charger OCPI Gateway", "icon": "zap", "custom_label": "EVSE-Gateway-03", "last_ip": "10.56.0.198"},
+            "208950000000107": {"vertical": "ev_infrastructure", "device_type": "Ultra-Fast Hub Power Unit (350kW)", "icon": "zap", "custom_label": "EVSE-Charger-03-Standby"},
+            "208950000000108": {"vertical": "ev_infrastructure", "device_type": "Fleet Depot Charging Controller", "icon": "zap", "custom_label": "Depot-Slave-Trucks"},
+            "208950000000109": {"vertical": "ev_infrastructure", "device_type": "Payment & RFID Authorizer Gateway", "icon": "zap", "custom_label": "OCPI-Payment-02-Spare"},
+            "208950000000110": {"vertical": "ev_infrastructure", "device_type": "EV Smart Grid Load Balancer", "icon": "zap", "custom_label": "Grid-Balancer-South"}
+        },
+        "active_sessions": {
+            "208950000000101": {"ipv4_addr": "10.56.0.193", "apn": "sasetest", "status": "Active", "region": "europe-west9", "tenant_status": "Yes"},
+            "208950000000102": {"ipv4_addr": "10.56.0.194", "apn": "sasetest", "status": "Active", "region": "europe-west9", "tenant_status": "Yes"},
+            "208950000000103": {"ipv4_addr": "10.56.0.195", "apn": "sasetest", "status": "Active", "region": "europe-west9", "tenant_status": "Yes"},
+            "208950000000104": {"ipv4_addr": "10.56.0.196", "apn": "sasetest", "status": "Active", "region": "europe-west9", "tenant_status": "Yes"},
+            "208950000000105": {"ipv4_addr": "10.56.0.197", "apn": "sasetest", "status": "Active", "region": "europe-west9", "tenant_status": "Yes"},
+            "208950000000106": {"ipv4_addr": "10.56.0.198", "apn": "sasetest", "status": "Active", "region": "europe-west9", "tenant_status": "Yes"}
+        }
+    }
+}
+
+
+def get_builtin_scenario_presets() -> List[Dict[str, Any]]:
+    """Return summary list of pre-configured demo fleet scenarios."""
+    return [
+        {
+            "id": s["id"],
+            "name": s["name"],
+            "icon": s["icon"],
+            "vertical": s["vertical"],
+            "description": s["description"],
+            "sim_count": len(s.get("sim_metadata", {})),
+            "active_sessions_count": len(s.get("active_sessions", {})),
+        }
+        for s in BUILTIN_SCENARIOS.values()
+    ]
+
+
+def load_builtin_scenario(preset_id: str, target_dir: Optional[Union[str, Path]] = None) -> Dict[str, Any]:
+    """Load and apply a built-in demo scenario into local persistent state."""
+    scenario = BUILTIN_SCENARIOS.get(preset_id)
+    if not scenario:
+        raise ValueError(f"Unknown preset ID: '{preset_id}'. Available: {list(BUILTIN_SCENARIOS.keys())}")
+
+    pack = {
+        "pack_version": "1.0",
+        "scenario_name": scenario["name"],
+        "sim_metadata": scenario["sim_metadata"],
+        "active_sessions": scenario["active_sessions"],
+        "cached_ues": [],
+        "cached_groups": [],
+    }
+    return import_demo_pack(pack, target_dir)
+
 
 

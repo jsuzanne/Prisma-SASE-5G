@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Request, BackgroundTasks, Response
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -46,6 +46,10 @@ from src.config import (
     save_cached_ues,
     load_cached_groups,
     save_cached_groups,
+    export_demo_pack,
+    import_demo_pack,
+    get_builtin_scenario_presets,
+    load_builtin_scenario,
 )
 from src.auth import PANWAuthManager
 from src.models import TenantUEMapping, UESession
@@ -221,13 +225,13 @@ class EnrichFleetModel(BaseModel):
     tsg_id: Optional[str] = None
 
 
+class OperationalModeModel(BaseModel):
+    standalone_mode: bool = False
 
 
-
-
-# Active 5G subscriber session state tracking (backed by persistent active_sessions.json)
-
-
+# -----------------------------------------------------------------------------
+# API Endpoints: System, Operational Mode & Demo Packs
+# -----------------------------------------------------------------------------
 
 @app.get("/api/version")
 def get_app_version():
@@ -254,24 +258,27 @@ def get_system_status():
         
         token_preview = None
         auth_error = None
-        if has_creds:
+        if has_creds and not config.standalone_mode:
             try:
                 auth = PANWAuthManager(config)
                 token = auth.get_access_token()
                 token_preview = f"{token[:8]}...{token[-6:]}" if token else None
             except Exception as e:
                 auth_error = str(e)
+        elif config.standalone_mode:
+            token_preview = "standalone-sandbox"
 
         return {
-            "status": "healthy" if (has_creds and not auth_error) else "needs_config",
-            "authenticated": bool(token_preview),
-            "auth_error": auth_error,
+            "status": "standalone" if config.standalone_mode else ("healthy" if (has_creds and not auth_error) else "needs_config"),
+            "authenticated": bool(token_preview) or config.standalone_mode,
+            "auth_error": auth_error if not config.standalone_mode else None,
             "token_preview": token_preview,
             "client_id": config.client_id,
             "tsg_id": config.tsg_id,
             "api_base_url": config.api_base_url,
             "default_apn": config.default_apn,
             "default_ip_type": config.default_ip_type,
+            "standalone_mode": bool(config.standalone_mode),
             "version": v_info["version"],
             "version_info": v_info,
         }
@@ -280,9 +287,87 @@ def get_system_status():
             "status": "error",
             "authenticated": False,
             "auth_error": str(exc),
+            "standalone_mode": False,
             "version": v_info["version"],
             "version_info": v_info,
         }
+
+
+@app.get("/api/mode")
+def get_operational_mode():
+    """Get current operational mode (Live SCM Cloud vs Standalone Demo Sandbox)."""
+    cfg = load_config()
+    return {
+        "success": True,
+        "standalone_mode": bool(cfg.standalone_mode),
+        "mode": "standalone" if cfg.standalone_mode else "live",
+        "description": "100% Offline Zero-Latency Demo Sandbox" if cfg.standalone_mode else "Live Strata Cloud Manager API (Default)",
+    }
+
+
+@app.post("/api/mode")
+def set_operational_mode(payload: OperationalModeModel):
+    """Switch operational mode between Live SCM Cloud (default) and Standalone Demo Sandbox."""
+    cfg = load_config()
+    cfg.standalone_mode = payload.standalone_mode
+    save_config(cfg)
+    return {
+        "success": True,
+        "standalone_mode": cfg.standalone_mode,
+        "mode": "standalone" if cfg.standalone_mode else "live",
+        "message": f"Operational mode switched to {'Standalone Demo Sandbox (100% Offline)' if cfg.standalone_mode else 'Live SCM Cloud API'}",
+    }
+
+
+@app.get("/api/demo/export")
+def export_demo_fleet(scenario_name: Optional[str] = "Prisma SASE 5G Demo Fleet"):
+    """Export complete fleet state (SIMs, metadata, sessions, groups) as a portable Demo Pack JSON file."""
+    import json
+    pack = export_demo_pack(scenario_name=scenario_name or "Prisma SASE 5G Demo Fleet")
+    content = json.dumps(pack, indent=2)
+    filename = f"prisma_5g_demo_pack_{pack.get('tenant_info', {}).get('default_apn', 'fleet')}.json"
+    return Response(
+        content=content,
+        media_type="application/json",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@app.post("/api/demo/import")
+def import_demo_fleet(payload: Dict[str, Any]):
+    """Import a Demo Pack JSON into persistent local state."""
+    try:
+        res = import_demo_pack(payload)
+        return {
+            "success": True,
+            "data": res,
+            "message": f"Successfully imported demo pack '{res.get('scenario_name')}' with {res.get('sims_count')} SIM(s) and {res.get('active_sessions_count')} active session(s).",
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get("/api/demo/presets")
+def list_demo_presets():
+    """List built-in scenario presets (Retail, Industry 4.0, EV Hub)."""
+    return {
+        "success": True,
+        "presets": get_builtin_scenario_presets(),
+    }
+
+
+@app.post("/api/demo/presets/load/{preset_id}")
+def load_demo_preset(preset_id: str):
+    """Instantly load and activate a built-in demo scenario preset."""
+    try:
+        res = load_builtin_scenario(preset_id)
+        return {
+            "success": True,
+            "data": res,
+            "message": f"Successfully loaded '{res.get('scenario_name')}' with {res.get('sims_count')} SIM cards.",
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @app.get("/api/config")

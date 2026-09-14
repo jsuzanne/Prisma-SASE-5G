@@ -1239,6 +1239,9 @@
                         <button onclick="openAutoPopulateModal()" class="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-orange-500/20 hover:from-amber-500/30 hover:to-orange-500/30 text-amber-300 border border-amber-500/30 text-xs font-semibold flex items-center gap-1.5 shadow transition cursor-pointer" title="Enrich existing SIMs with realistic IoT equipment names and verticals">
                             <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-400"></i> Auto-Enrich Fleet
                         </button>
+                        <button onclick="openDemoPackModal()" class="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-500/20 to-indigo-500/20 hover:from-purple-500/30 hover:to-indigo-500/30 text-purple-300 border border-purple-500/30 text-xs font-semibold flex items-center gap-1.5 shadow transition cursor-pointer" title="Demo Packs & Offline Scenario Manager (Import, Export, Built-in Presets)">
+                            <i data-lucide="package" class="w-3.5 h-3.5 text-purple-400"></i> Demo Packs
+                        </button>
                         <button onclick="openAddSimModal()" class="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow transition">
                             <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add New SIM
                         </button>
@@ -1792,6 +1795,62 @@
 
             <!-- TAB 5: Settings & Credentials (.env) & Branding Customization -->
             <div id="tab-settings" class="tab-content hidden space-y-6">
+
+                <!-- Operational Mode Card (Live SCM Cloud vs Standalone Demo Sandbox) -->
+                <div class="glass-panel rounded-2xl p-6 space-y-4 border border-white/10">
+                    <div class="flex items-center justify-between pb-3 border-b border-white/10">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                                <i data-lucide="radio" class="w-5 h-5"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-base font-bold text-white">Operational Engine & Mode</h3>
+                                <p class="text-xs text-gray-400">Choose between direct Strata Cloud Manager API mode (default) or 100% offline Standalone Demo Sandbox</p>
+                            </div>
+                        </div>
+                        <span id="current-mode-badge" class="px-2.5 py-1 rounded-lg text-xs font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Live SCM Cloud API</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <button type="button" onclick="setOperationalMode(false)" id="mode-btn-live" class="p-4 rounded-xl border border-emerald-500/40 bg-emerald-500/10 text-left transition flex items-start justify-between cursor-pointer">
+                            <div class="space-y-1">
+                                <div class="text-xs font-semibold text-white flex items-center gap-2">
+                                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                                    Live SCM Cloud API (Default)
+                                </div>
+                                <div class="text-[11px] text-gray-400">Direct real-time communication with Palo Alto Networks Strata Cloud Manager cloud infrastructure.</div>
+                            </div>
+                            <i data-lucide="check" id="mode-icon-live" class="w-4 h-4 text-emerald-400 shrink-0"></i>
+                        </button>
+
+                        <button type="button" onclick="setOperationalMode(true)" id="mode-btn-standalone" class="p-4 rounded-xl border border-white/10 bg-gray-900/60 hover:bg-white/5 text-left transition flex items-start justify-between cursor-pointer">
+                            <div class="space-y-1">
+                                <div class="text-xs font-semibold text-white flex items-center gap-2">
+                                    <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+                                    Standalone Demo Sandbox (100% Offline)
+                                </div>
+                                <div class="text-[11px] text-gray-400">Zero-latency simulation engine. Zero cloud dependencies, perfect for trade shows & offline demos.</div>
+                            </div>
+                            <i data-lucide="circle" id="mode-icon-standalone" class="w-4 h-4 text-gray-600 shrink-0"></i>
+                        </button>
+                    </div>
+
+                    <!-- Demo Packs Quick Actions inside Settings -->
+                    <div class="pt-3 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-3">
+                        <div class="text-xs text-gray-400 flex items-center gap-2">
+                            <i data-lucide="package" class="w-4 h-4 text-purple-400"></i>
+                            <span>Manage portable Demo Packs & scenario presets (Retail, Industry 4.0, EV Hub):</span>
+                        </div>
+                        <div class="flex items-center gap-2 w-full sm:w-auto">
+                            <button type="button" onclick="exportCurrentDemoPack()" class="px-3 py-1.5 rounded-xl glass-panel hover:bg-white/10 text-gray-300 hover:text-white text-xs font-medium flex items-center gap-1.5 transition cursor-pointer">
+                                <i data-lucide="download" class="w-3.5 h-3.5 text-cyan-400"></i> Export Fleet (.json)
+                            </button>
+                            <button type="button" onclick="openDemoPackModal()" class="px-3 py-1.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/30 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer">
+                                <i data-lucide="folder-open" class="w-3.5 h-3.5"></i> Open Demo Packs
+                            </button>
+                        </div>
+                    </div>
+                </div>
 
                 <!-- Display & Typography Scaling Card -->
                 <div class="glass-panel rounded-2xl p-6 space-y-4 border border-white/10">
@@ -2782,6 +2841,127 @@
         </div>
     </div>
 
+    <!-- MODAL 7: Demo Packs & Offline Scenario Manager -->
+    <div id="modal-demo-packs" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden flex items-center justify-center p-3 sm:p-5">
+        <div class="glass-panel rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col border border-purple-500/40 glow-purple shadow-2xl overflow-hidden animate-fadeIn">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-gray-950/80 shrink-0">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400">
+                        <i data-lucide="package" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h3 class="text-base font-bold text-white tracking-wide">Demo Packs & Scenario Presets</h3>
+                            <span class="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-[11px] font-mono border border-purple-500/30">100% Portable</span>
+                        </div>
+                        <p class="text-xs text-gray-400">Export, import or load instant pre-configured 5G vertical fleets (Offline / Standalone / Live)</p>
+                    </div>
+                </div>
+                <button onclick="closeDemoPackModal()" class="w-8 h-8 rounded-lg glass-panel flex items-center justify-center text-gray-400 hover:text-white transition cursor-pointer">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <!-- Modal Content (Scrollable) -->
+            <div class="p-6 overflow-y-auto custom-scrollbar space-y-6 flex-1">
+                
+                <!-- Section 1: Built-in Scenarios (1-Click Switch) -->
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between">
+                        <h4 class="text-xs font-semibold text-gray-300 uppercase tracking-wider flex items-center gap-2">
+                            <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-400"></i> Built-in Industry Fleet Scenarios
+                        </h4>
+                        <span class="text-[11px] text-gray-500 font-mono">1-Click Instant Activation</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3.5" id="demo-scenarios-container">
+                        <!-- Retail Card -->
+                        <div class="p-4 rounded-xl border border-white/10 bg-gray-900/60 hover:border-emerald-500/40 transition space-y-3 flex flex-col justify-between group">
+                            <div class="space-y-2">
+                                <div class="flex items-center justify-between">
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">Retail & POS</span>
+                                    <span class="text-[11px] font-mono text-gray-400">14 SIMs</span>
+                                </div>
+                                <div class="text-xs font-bold text-white group-hover:text-emerald-300 transition">Retail & Supermarket Fleet</div>
+                                <p class="text-[11px] text-gray-400 line-clamp-2">Ingenico POS terminals, Self-Checkout kiosks, Zebra barcode scanners, and RFID security gates.</p>
+                            </div>
+                            <button type="button" onclick="loadScenarioPreset('retail_supermarket')" class="w-full py-1.5 px-3 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer">
+                                <i data-lucide="play" class="w-3 h-3"></i> Load Scenario
+                            </button>
+                        </div>
+
+                        <!-- Industry 4.0 Card -->
+                        <div class="p-4 rounded-xl border border-white/10 bg-gray-900/60 hover:border-cyan-500/40 transition space-y-3 flex flex-col justify-between group">
+                            <div class="space-y-2">
+                                <div class="flex items-center justify-between">
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">Manufacturing</span>
+                                    <span class="text-[11px] font-mono text-gray-400">12 SIMs</span>
+                                </div>
+                                <div class="text-xs font-bold text-white group-hover:text-cyan-300 transition">Smart Factory / Industry 4.0</div>
+                                <p class="text-[11px] text-gray-400 line-clamp-2">Autonomous mobile robots (AGVs), Kuka 6-axis arms, Siemens S7 PLCs, and vibration sensors.</p>
+                            </div>
+                            <button type="button" onclick="loadScenarioPreset('smart_factory')" class="w-full py-1.5 px-3 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/30 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer">
+                                <i data-lucide="play" class="w-3 h-3"></i> Load Scenario
+                            </button>
+                        </div>
+
+                        <!-- EV Infra Card -->
+                        <div class="p-4 rounded-xl border border-white/10 bg-gray-900/60 hover:border-amber-500/40 transition space-y-3 flex flex-col justify-between group">
+                            <div class="space-y-2">
+                                <div class="flex items-center justify-between">
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/20">EV & Energy</span>
+                                    <span class="text-[11px] font-mono text-gray-400">10 SIMs</span>
+                                </div>
+                                <div class="text-xs font-bold text-white group-hover:text-amber-300 transition">EV Charging & Smart Grid</div>
+                                <p class="text-[11px] text-gray-400 line-clamp-2">350kW Ultra-Fast Chargers, Smart Grid Load Balancers, Fleet Depot controllers, and OCPI payment nodes.</p>
+                            </div>
+                            <button type="button" onclick="loadScenarioPreset('ev_infrastructure')" class="w-full py-1.5 px-3 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer">
+                                <i data-lucide="play" class="w-3 h-3"></i> Load Scenario
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 2: Export & Import Packs -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-white/10">
+                    
+                    <!-- Export Card -->
+                    <div class="p-5 rounded-2xl border border-white/10 bg-gray-900/40 space-y-3 flex flex-col justify-between">
+                        <div class="space-y-2">
+                            <div class="flex items-center space-x-2 text-cyan-400">
+                                <i data-lucide="download" class="w-4 h-4"></i>
+                                <h4 class="text-xs font-bold uppercase tracking-wider text-white">Export Current Fleet Snapshot</h4>
+                            </div>
+                            <p class="text-xs text-gray-400">Download your active SIM inventory, session allocations, and group metadata as a single portable JSON file.</p>
+                        </div>
+                        <button type="button" onclick="exportCurrentDemoPack()" class="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-lg transition cursor-pointer">
+                            <i data-lucide="download" class="w-4 h-4"></i> Download Demo Pack (.json)
+                        </button>
+                    </div>
+
+                    <!-- Import Card -->
+                    <div class="p-5 rounded-2xl border border-white/10 bg-gray-900/40 space-y-3 flex flex-col justify-between">
+                        <div class="space-y-2">
+                            <div class="flex items-center space-x-2 text-purple-400">
+                                <i data-lucide="upload" class="w-4 h-4"></i>
+                                <h4 class="text-xs font-bold uppercase tracking-wider text-white">Import Custom Demo Pack</h4>
+                            </div>
+                            <p class="text-xs text-gray-400">Upload a saved `.json` demo pack to replace or restore fleet state instantly.</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <input type="file" id="demo-pack-file-input" accept=".json,application/json" class="hidden" onchange="handleDemoPackFileSelected(event)">
+                            <button type="button" onclick="document.getElementById('demo-pack-file-input').click()" class="w-full py-2.5 px-4 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/30 text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer">
+                                <i data-lucide="file-up" class="w-4 h-4"></i> Select JSON Pack File...
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
     <!-- MODAL 6: Live API Debugger & Inspector -->
     <div id="modal-api-debugger" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden flex items-center justify-center p-2 sm:p-5">
         <div class="glass-panel rounded-2xl w-full max-w-7xl h-[90vh] flex flex-col border border-cyan-500/40 glow-cyan shadow-2xl overflow-hidden">
@@ -3382,6 +3562,155 @@
             }
         }
 
+        // Operational Mode Manager (Live SCM Cloud vs Standalone Sandbox)
+        let isStandaloneMode = false;
+
+        async function setOperationalMode(standalone) {
+            try {
+                const res = await fetch('/api/mode', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ standalone_mode: standalone })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    isStandaloneMode = Boolean(data.standalone_mode);
+                    updateOperationalModeUI(isStandaloneMode);
+                    showToast("Mode Switched", data.message);
+                    refreshAll();
+                } else {
+                    showToast("Mode Switch Failed", data.error || "Could not switch mode", "error");
+                }
+            } catch (err) {
+                showToast("Mode Error", err.message, "error");
+            }
+        }
+
+        function updateOperationalModeUI(standalone) {
+            const badge = document.getElementById('current-mode-badge');
+            const btnLive = document.getElementById('mode-btn-live');
+            const iconLive = document.getElementById('mode-icon-live');
+            const btnStand = document.getElementById('mode-btn-standalone');
+            const iconStand = document.getElementById('mode-icon-standalone');
+
+            if (standalone) {
+                if (badge) {
+                    badge.innerText = "Standalone Sandbox (100% Offline)";
+                    badge.className = "px-2.5 py-1 rounded-lg text-xs font-mono bg-cyan-500/10 text-cyan-400 border border-cyan-500/20";
+                }
+                if (btnLive) {
+                    btnLive.className = "p-4 rounded-xl border border-white/10 bg-gray-900/60 hover:bg-white/5 text-left transition flex items-start justify-between cursor-pointer";
+                }
+                if (iconLive) {
+                    iconLive.setAttribute('data-lucide', 'circle');
+                    iconLive.className = "w-4 h-4 text-gray-600 shrink-0";
+                }
+                if (btnStand) {
+                    btnStand.className = "p-4 rounded-xl border border-cyan-500/40 bg-cyan-500/10 text-left transition flex items-start justify-between cursor-pointer";
+                }
+                if (iconStand) {
+                    iconStand.setAttribute('data-lucide', 'check');
+                    iconStand.className = "w-4 h-4 text-cyan-400 shrink-0";
+                }
+            } else {
+                if (badge) {
+                    badge.innerText = "Live SCM Cloud API (Default)";
+                    badge.className = "px-2.5 py-1 rounded-lg text-xs font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+                }
+                if (btnLive) {
+                    btnLive.className = "p-4 rounded-xl border border-emerald-500/40 bg-emerald-500/10 text-left transition flex items-start justify-between cursor-pointer";
+                }
+                if (iconLive) {
+                    iconLive.setAttribute('data-lucide', 'check');
+                    iconLive.className = "w-4 h-4 text-emerald-400 shrink-0";
+                }
+                if (btnStand) {
+                    btnStand.className = "p-4 rounded-xl border border-white/10 bg-gray-900/60 hover:bg-white/5 text-left transition flex items-start justify-between cursor-pointer";
+                }
+                if (iconStand) {
+                    iconStand.setAttribute('data-lucide', 'circle');
+                    iconStand.className = "w-4 h-4 text-gray-600 shrink-0";
+                }
+            }
+            lucide.createIcons();
+        }
+
+        // Demo Packs Manager
+        function openDemoPackModal() {
+            const m = document.getElementById('modal-demo-packs');
+            if (m) m.classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function closeDemoPackModal() {
+            const m = document.getElementById('modal-demo-packs');
+            if (m) m.classList.add('hidden');
+        }
+
+        async function exportCurrentDemoPack() {
+            try {
+                const res = await fetch('/api/demo/export');
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const blob = await res.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = `prisma_5g_demo_pack_${new Date().toISOString().slice(0,10)}.json`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                showToast("Demo Pack Exported", "Downloaded complete fleet state JSON pack");
+            } catch (err) {
+                showToast("Export Error", err.message, "error");
+            }
+        }
+
+        async function handleDemoPackFileSelected(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const parsed = JSON.parse(e.target.result);
+                    const res = await fetch('/api/demo/import', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(parsed)
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        showToast("Demo Pack Imported", data.message);
+                        closeDemoPackModal();
+                        refreshAll();
+                    } else {
+                        showToast("Import Failed", data.error || data.detail || "Invalid format", "error");
+                    }
+                } catch (err) {
+                    showToast("Import Error", `JSON parse or upload error: ${err.message}`, "error");
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        async function loadScenarioPreset(presetId) {
+            try {
+                const res = await fetch(`/api/demo/presets/load/${presetId}`, {
+                    method: 'POST'
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast("Scenario Activated", data.message);
+                    closeDemoPackModal();
+                    refreshAll();
+                } else {
+                    showToast("Scenario Error", data.error || data.detail, "error");
+                }
+            } catch (err) {
+                showToast("Scenario Error", err.message, "error");
+            }
+        }
+
         // Fetch System Status & Version
         async function fetchStatus() {
             try {
@@ -3390,12 +3719,21 @@
                 const pill = document.getElementById('status-pill');
                 const text = document.getElementById('status-text');
 
-                if (data.authenticated) {
-                    pill.className = "flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-medium cursor-pointer hover:bg-emerald-500/20 transition";
+                isStandaloneMode = Boolean(data.standalone_mode);
+                updateOperationalModeUI(isStandaloneMode);
+
+                if (data.standalone_mode) {
+                    pill.className = "flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-xs font-medium cursor-pointer hover:bg-cyan-500/20 transition shadow-sm";
+                    text.innerText = "⚡ Standalone Demo";
+                    pill.title = "Operating in 100% Offline Standalone Demo Sandbox (Zero-Latency Simulation)";
+                    pill.onclick = () => switchTab('tab-settings');
+                } else if (data.authenticated) {
+                    pill.className = "flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-medium cursor-pointer hover:bg-emerald-500/20 transition shadow-sm";
                     text.innerText = "SCM Online";
                     pill.title = "Connected to Strata Cloud Manager (Active Token: " + (data.token_preview || "Live") + ")";
+                    pill.onclick = () => switchTab('tab-settings');
                 } else {
-                    pill.className = "flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-medium cursor-pointer hover:bg-amber-500/20 transition";
+                    pill.className = "flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-medium cursor-pointer hover:bg-amber-500/20 transition shadow-sm";
                     text.innerText = "Configure SCM";
                     pill.onclick = () => switchTab('tab-settings');
                 }

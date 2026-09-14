@@ -1,4 +1,6 @@
 import time
+import random
+import json
 import logging
 from typing import List, Dict, Any, Optional, Union
 import requests
@@ -38,8 +40,34 @@ class Prisma5GClient:
         json_data: Optional[Any] = None,
         retry_on_401: bool = True,
     ) -> requests.Response:
-        """Internal helper to execute authenticated requests with automatic token refresh on 401."""
+        """Internal helper to execute authenticated requests or simulate in standalone mode."""
         url = f"{self.base_url}{path}"
+
+        if self.config.standalone_mode:
+            resp_body = self._simulate_standalone_response(method, path, params, json_data)
+            duration_ms = random.uniform(15.0, 42.0)
+            api_debug_logger.record(
+                method=method,
+                url=url,
+                path=path,
+                request_headers={
+                    "Authorization": "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6InN0YW5kYWxvbmVfc2FuZGJveCJ9.standalone_token",
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                },
+                request_body=json_data or ({"_query_params": params} if params else None),
+                response_status=200,
+                response_headers={"content-type": "application/json", "x-panw-simulation": "standalone-engine"},
+                response_body=resp_body,
+                duration_ms=duration_ms,
+                source="Standalone Sandbox",
+            )
+            mock_resp = requests.Response()
+            mock_resp.status_code = 200
+            mock_resp._content = json.dumps(resp_body).encode("utf-8")
+            mock_resp.headers = {"Content-Type": "application/json"}
+            return mock_resp
+
         headers = self.auth.get_auth_headers()
 
         logger.debug("%s %s (params=%s, body=%s)", method, url, params, json_data)
@@ -103,6 +131,49 @@ class Prisma5GClient:
                 source="SCM API",
             )
 
+    def _simulate_standalone_response(
+        self,
+        method: str,
+        path: str,
+        params: Optional[Dict[str, Any]] = None,
+        json_data: Optional[Any] = None,
+    ) -> Any:
+        """Generate realistic 3GPP and Palo Alto SASE response payloads in standalone demo mode."""
+        if "userGroup/list" in path:
+            return {"data": []}
+        elif "tenantUEInfo/list" in path:
+            return {"totalItems": 0, "data": []}
+        elif "interconnect" in path:
+            return {
+                "data": [
+                    {
+                        "bandwidth": 100,
+                        "computeRegion": "europe-west9",
+                        "status": "Successful",
+                        "vlanAttachmentCount": 1,
+                        "vlanAttachmentStatusEntry": {"down": 0, "up": 1},
+                    }
+                ],
+                "header": {"status": "SUCCESS"},
+            }
+        elif "tenant_service_groups" in path:
+            return [
+                {"id": self.config.tsg_id or "1965438697", "display_name": "SP-5G-POC2-Transatel", "hierarchy_level": "Root MSP"},
+                {"id": "1291887562", "display_name": "Transatel demo", "parent_id": self.config.tsg_id or "1965438697"},
+            ]
+        elif "register/ue" in path or "deregister/ue" in path:
+            action = "registered" if "register/ue" in path else "deregistered"
+            return {"statusCode": 200, "status": "Accepted", "message": f"5G Session telemetry {action} successfully"}
+        elif "userGroup" in path and method == "POST":
+            gname = json_data.get("group_name") or json_data.get("name") if isinstance(json_data, dict) else "custom-group"
+            return {"id": f"grp_{int(time.time())}", "group_id": f"grp_{int(time.time())}", "status": "Success", "group_name": gname}
+        elif "tenantUEInfo" in path and method == "POST":
+            imsi = json_data.get("imsi", "sim") if isinstance(json_data, dict) else "sim"
+            return {"id": f"ue_{imsi}", "identity_id": f"ue_{imsi}", "status": "Success", "imsi": imsi}
+        elif method in ("PUT", "DELETE"):
+            return {"status": "Success", "message": "Operation completed successfully"}
+        return {"status": "Success"}
+
     # --------------------------------------------------------------------------
     # 0. Multitenant & Hierarchy Discovery
     # --------------------------------------------------------------------------
@@ -120,7 +191,10 @@ class Prisma5GClient:
         resp = self._request("GET", "/tenancy/v1/tenant_service_groups")
         if resp.status_code == 200:
             data = resp.json()
-            items = data.get("items", []) if isinstance(data, dict) else []
+            if isinstance(data, list):
+                items = data
+            elif isinstance(data, dict):
+                items = data.get("items", [])
 
         # Fallback to list_children if empty
         if not items and root_tsg:
@@ -131,7 +205,10 @@ class Prisma5GClient:
             )
             if resp_children.status_code == 200:
                 data = resp_children.json()
-                items = data.get("items", [])
+                if isinstance(data, list):
+                    items = data
+                elif isinstance(data, dict):
+                    items = data.get("items", [])
 
         if items:
             self._tenant_cache = items

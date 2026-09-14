@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.3.4] - 2026-09-14
+
+### Added & Improved
+- **1-Click JSON Demo Packs & 100% Offline Standalone Sandbox Mode**:
+  - **1-Click Demo Pack Import/Export**: Export the complete 5G fleet setup (SIM cards, live sessions, IP allocations, policy groups) into a single portable `.json` file and restore it instantly with one click.
+  - **Built-in Trade Show Scenarios**: Out-of-the-box presets for **Retail & POS**, **Smart Factory 4.0 (Robotics & AGVs)**, and **EV Charging Hub**.
+  - **100% Offline Standalone Sandbox Mode**: Optional toggle in Settings allowing sales engineers and presenters to perform full, zero-latency 5G security demos without internet or SCM connectivity.
+  - **Real-time Live API Simulation**: Standalone mode generates realistic 3GPP and Palo Alto SASE responses while feeding full cURL requests and 200 OK responses to the live API Inspector.
+  - **Default Setting**: Live SCM Cloud API remains the strict default operational mode.
+
+---
+
 ## [2.3.3] - 2026-09-14
 
 ### Added & Improved
