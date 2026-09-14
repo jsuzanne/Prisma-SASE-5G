@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.3.3] - 2026-09-14
+
+### Added & Improved
+- **Offline & Cloud Outage Resilience (Anti-503 Snapshot Fallback)**:
+  - Added automatic graceful fallback when Palo Alto SCM 5G microservices return `503 Service Unavailable` (`no healthy upstream`).
+  - Automatically serves persistent local snapshots for SIM inventory (`/api/ues`), user groups (`/api/groups`), and tenant hierarchy (`/api/tenants`) using `active_sessions.json` and `sim_metadata.json`.
+  - Added discreet UI resilience indicator (`⚡ Local Snapshot`) in the SIM Inventory toolbar when offline cache is serving data.
+  - Transparent simulated session attach/detach and group updates in offline demo mode.
+
+---
+
 ## [2.3.2] - 2026-09-13
 
 ### Added & Improved

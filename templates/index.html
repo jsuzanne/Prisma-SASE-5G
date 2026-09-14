@@ -1229,6 +1229,7 @@
 
                     <div class="flex items-center gap-2 text-xs text-gray-400 justify-between lg:justify-end flex-wrap">
                         <span id="sim-count-badge" class="px-2.5 py-1 rounded-lg bg-white/5 text-[11px] font-mono text-gray-300">Loading...</span>
+                        <span id="offline-resilience-badge" class="hidden px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/25 text-[11px] font-mono text-amber-300 items-center gap-1.5" title="Operating with local snapshot resilience (SCM 5G backend unreachable)"><span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span> Local Snapshot</span>
                         <button onclick="refreshSIMInventory(this)" class="p-2 rounded-xl glass-panel hover:bg-white/10 text-gray-300 hover:text-white transition cursor-pointer" title="Refresh SIM Inventory">
                             <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
                         </button>
@@ -3735,6 +3736,18 @@
                 const res = await fetch('/api/ues');
                 const data = await res.json();
                 allSIMs = data.data || [];
+
+                const resBadge = document.getElementById('offline-resilience-badge');
+                if (resBadge) {
+                    if (data.fallback) {
+                        resBadge.classList.remove('hidden');
+                        resBadge.classList.add('inline-flex');
+                    } else {
+                        resBadge.classList.add('hidden');
+                        resBadge.classList.remove('inline-flex');
+                    }
+                }
+
                 renderSIMsTable(allSIMs);
                 renderSummaryUEMappings(allSIMs);
             } catch (e) {

@@ -4,7 +4,7 @@ import json
 import os
 from dataclasses import dataclass, asdict
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 try:
     from dotenv import load_dotenv
 except ImportError:
@@ -525,4 +525,55 @@ def delete_single_active_session(imsi: str, target_dir: Optional[Union[str, Path
     if imsi in current:
         del current[imsi]
         save_active_sessions(current, target_dir)
+
+
+def get_cached_ues_file(target_dir: Optional[Union[str, Path]] = None) -> Path:
+    cfg_dir = get_config_dir(target_dir)
+    cfg_dir.mkdir(parents=True, exist_ok=True)
+    return cfg_dir / "cached_ues.json"
+
+
+def load_cached_ues(target_dir: Optional[Union[str, Path]] = None) -> List[Dict[str, Any]]:
+    """Load cached SIM / UE list snapshot."""
+    f = get_cached_ues_file(target_dir)
+    if f.exists():
+        try:
+            data = json.loads(f.read_text(encoding="utf-8"))
+            if isinstance(data, list):
+                return data
+        except Exception:
+            pass
+    return []
+
+
+def save_cached_ues(ues: List[Dict[str, Any]], target_dir: Optional[Union[str, Path]] = None) -> None:
+    """Save SIM / UE list snapshot to cached_ues.json."""
+    f = get_cached_ues_file(target_dir)
+    f.write_text(json.dumps(ues, indent=2), encoding="utf-8")
+
+
+def get_cached_groups_file(target_dir: Optional[Union[str, Path]] = None) -> Path:
+    cfg_dir = get_config_dir(target_dir)
+    cfg_dir.mkdir(parents=True, exist_ok=True)
+    return cfg_dir / "cached_groups.json"
+
+
+def load_cached_groups(target_dir: Optional[Union[str, Path]] = None) -> List[Dict[str, Any]]:
+    """Load cached user group list snapshot."""
+    f = get_cached_groups_file(target_dir)
+    if f.exists():
+        try:
+            data = json.loads(f.read_text(encoding="utf-8"))
+            if isinstance(data, list):
+                return data
+        except Exception:
+            pass
+    return []
+
+
+def save_cached_groups(groups: List[Dict[str, Any]], target_dir: Optional[Union[str, Path]] = None) -> None:
+    """Save user group list snapshot to cached_groups.json."""
+    f = get_cached_groups_file(target_dir)
+    f.write_text(json.dumps(groups, indent=2), encoding="utf-8")
+
 

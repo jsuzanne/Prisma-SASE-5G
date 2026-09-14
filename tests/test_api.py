@@ -308,7 +308,31 @@ class TestAppEndpoints(unittest.TestCase):
         resp_invalid = client.get("/api/cidr/validate?ip=10.58.0.195")
         self.assertEqual(resp_invalid.status_code, 200)
 
+    @patch("app.Prisma5GClient.list_tenant_ues")
+    def test_ues_endpoint_scm_503_fallback(self, mock_ues):
+        # Simulate SCM 503 upstream failure
+        mock_ues.side_effect = Exception("503 Server Error: no healthy upstream")
+        response = client.get("/api/ues")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["success"])
+        self.assertTrue(data["fallback"])
+        self.assertEqual(data["source"], "offline_cache")
+        self.assertTrue(len(data["data"]) > 0)
+
+    @patch("app.Prisma5GClient.list_user_groups")
+    def test_groups_endpoint_scm_503_fallback(self, mock_groups):
+        # Simulate SCM 503 upstream failure
+        mock_groups.side_effect = Exception("503 Server Error: no healthy upstream")
+        response = client.get("/api/groups")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["success"])
+        self.assertTrue(data["fallback"])
+        self.assertEqual(data["source"], "offline_cache")
+        self.assertTrue(len(data["data"]) > 0)
 
 
 if __name__ == "__main__":
     unittest.main()
+
