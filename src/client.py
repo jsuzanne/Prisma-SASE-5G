@@ -234,7 +234,7 @@ class Prisma5GClient:
         API: POST /mt/manage/5g/tenantUEInfo/list
         """
         configured_tsg = str(self.config.tsg_id) if self.config.tsg_id else None
-        target_tsg = str(tsg_id) if tsg_id else configured_tsg
+        target_tsg = str(tsg_id) if tsg_id else (configured_tsg or ("1965438697" if self.config.standalone_mode else None))
 
         if not target_tsg:
             raise ValueError("tsg_id must be provided or configured in .env (PANW_TSG_ID)")
@@ -331,9 +331,9 @@ class Prisma5GClient:
         
         API: POST /mt/manage/5g/tenantUEInfo
         """
-        configured_tsg = self.config.tsg_id
-        target_tsg = tsg_id or configured_tsg
-        target_apn = apn or self.config.default_apn
+        configured_tsg = str(self.config.tsg_id) if self.config.tsg_id else None
+        target_tsg = str(tsg_id) if tsg_id else (configured_tsg or ("1965438697" if self.config.standalone_mode else None))
+        target_apn = apn or self.config.default_apn or "sasetest"
         target_root_tsg = root_tsg_id
 
         if not target_tsg:
@@ -518,7 +518,7 @@ class Prisma5GClient:
         API: POST /mt/manage/5g/userGroup/list
         """
         configured_tsg = str(self.config.tsg_id) if self.config.tsg_id else None
-        target_tsg = str(tsg_id) if tsg_id else configured_tsg
+        target_tsg = str(tsg_id) if tsg_id else (configured_tsg or ("1965438697" if self.config.standalone_mode else None))
 
         if not target_tsg:
             raise ValueError("tsg_id must be provided or configured in .env (PANW_TSG_ID)")
@@ -535,11 +535,11 @@ class Prisma5GClient:
                 return []
 
             try:
-                result = resp.json()
-                items = result.get("data", []) if isinstance(result, dict) else (result if isinstance(result, list) else [])
+                data = resp.json()
+                items = data.get("data", []) if isinstance(data, dict) else (data if isinstance(data, list) else [])
                 res_models = []
                 for item in items:
-                    m = UserGroup.from_api_dict(item)
+                    m = UserGroup.from_api_response(item)
                     if tenant_name:
                         m.tenant_name = tenant_name
                     res_models.append(m)
@@ -548,7 +548,7 @@ class Prisma5GClient:
                 return []
 
         if tsg_id:
-            models = _query_group_for_tsg(tsg_id)
+            models = _query_group_for_tsg(target_tsg)
             return {"models": models}
 
         tenants = self.list_tenants(target_tsg)
@@ -585,7 +585,8 @@ class Prisma5GClient:
         
         API: POST /mt/manage/5g/userGroup
         """
-        target_tsg = str(tsg_id or self.config.tsg_id)
+        configured_tsg = str(self.config.tsg_id) if self.config.tsg_id else None
+        target_tsg = str(tsg_id) if tsg_id else (configured_tsg or ("1965438697" if self.config.standalone_mode else None))
         if not target_tsg:
             raise ValueError("tsg_id must be provided or configured in .env (PANW_TSG_ID)")
 
@@ -827,7 +828,7 @@ class Prisma5GClient:
         3. Create missing SCM User Groups and update their member identity lists.
         4. (Optional) Inject real-time 5G session telemetry for active devices.
         """
-        tsg = target_tsg_id or pack_data.get("tenant_info", {}).get("tsg_id") or self.config.tsg_id
+        tsg = str(target_tsg_id or pack_data.get("tenant_info", {}).get("tsg_id") or pack_data.get("tenant_info", {}).get("active_tsg_id") or pack_data.get("tenant_info", {}).get("root_tsg_id") or self.config.tsg_id or "1965438697")
         default_apn = pack_data.get("tenant_info", {}).get("default_apn") or self.config.default_apn or "sasetest"
         
         sim_inventory = pack_data.get("sim_inventory", [])
