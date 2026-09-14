@@ -8,7 +8,7 @@ import subprocess
 from functools import lru_cache
 from typing import Dict, Any
 
-DEFAULT_BASE_VERSION = "2.3.4"
+DEFAULT_BASE_VERSION = "2.3.5"
 FALLBACK_BUILD_NUMBER = 43
 FALLBACK_COMMIT = "90c6afc"
 RELEASE_DATE = "2026-09-14"

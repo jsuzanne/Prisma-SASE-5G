@@ -2950,12 +2950,38 @@
                             </div>
                             <p class="text-xs text-gray-400">Upload a saved `.json` demo pack to replace or restore fleet state instantly.</p>
                         </div>
-                        <div class="flex items-center gap-2">
-                            <input type="file" id="demo-pack-file-input" accept=".json,application/json" class="hidden" onchange="handleDemoPackFileSelected(event)">
-                            <button type="button" onclick="document.getElementById('demo-pack-file-input').click()" class="w-full py-2.5 px-4 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/30 text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer">
-                                <i data-lucide="file-up" class="w-4 h-4"></i> Select JSON Pack File...
-                            </button>
+                        <div class="space-y-2.5">
+                            <label class="flex items-center gap-2 text-[11px] text-gray-300 cursor-pointer">
+                                <input type="checkbox" id="demo-pack-push-scm-checkbox" class="rounded border-gray-700 text-purple-500 focus:ring-0">
+                                <span>Also <strong>Bulk Provision to SCM Cloud</strong> upon import</span>
+                            </label>
+                            <div class="flex items-center gap-2">
+                                <input type="file" id="demo-pack-file-input" accept=".json,application/json" class="hidden" onchange="handleDemoPackFileSelected(event)">
+                                <button type="button" onclick="document.getElementById('demo-pack-file-input').click()" class="w-full py-2.5 px-4 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/30 text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer">
+                                    <i data-lucide="file-up" class="w-4 h-4"></i> Select JSON Pack File...
+                                </button>
+                            </div>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Section 3: 1-Click SCM Cloud Bulk Provisioning -->
+                <div class="p-5 rounded-2xl border border-amber-500/30 bg-amber-500/5 space-y-3">
+                    <div class="flex items-start justify-between">
+                        <div class="space-y-1">
+                            <div class="flex items-center space-x-2 text-amber-400">
+                                <i data-lucide="cloud-lightning" class="w-4 h-4"></i>
+                                <h4 class="text-xs font-bold uppercase tracking-wider text-white">1-Click Bulk Provision to SCM Cloud API</h4>
+                            </div>
+                            <p class="text-xs text-gray-400">Automatically creates missing SCM user groups, registers SIM hardware IDs, assigns security groups, and injects session telemetry into Palo Alto Networks Strata Cloud Manager.</p>
+                        </div>
+                        <span class="px-2.5 py-1 rounded-lg text-[10px] font-mono bg-amber-500/10 text-amber-400 border border-amber-500/20 shrink-0">SCM Automation</span>
+                    </div>
+                    <div class="flex items-center gap-3 pt-2">
+                        <button type="button" id="btn-bulk-provision-scm" onclick="triggerBulkProvisionSCM()" class="py-2.5 px-5 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-lg transition cursor-pointer">
+                            <i data-lucide="upload-cloud" class="w-4 h-4"></i> 🚀 Push Active Fleet to SCM Cloud
+                        </button>
+                        <div id="bulk-provision-status" class="text-xs text-gray-400 font-mono hidden"></div>
                     </div>
                 </div>
 
@@ -3678,6 +3704,7 @@
         async function handleDemoPackFileSelected(event) {
             const file = event.target.files[0];
             if (!file) return;
+            const pushToSCM = document.getElementById('demo-pack-push-scm-checkbox')?.checked || false;
             const reader = new FileReader();
             reader.onload = async (e) => {
                 try {
@@ -3685,7 +3712,10 @@
                     const res = await fetch('/api/demo/import', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(parsed)
+                        body: JSON.stringify({
+                            pack: parsed,
+                            push_to_scm: pushToSCM
+                        })
                     });
                     const data = await res.json();
                     if (data.success) {
@@ -3700,6 +3730,50 @@
                 }
             };
             reader.readAsText(file);
+        }
+
+        async function triggerBulkProvisionSCM() {
+            const btn = document.getElementById('btn-bulk-provision-scm');
+            const statusDiv = document.getElementById('bulk-provision-status');
+            if (!btn) return;
+            
+            btn.disabled = true;
+            btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Provisioning to SCM...';
+            if (statusDiv) {
+                statusDiv.classList.remove('hidden');
+                statusDiv.innerText = "Connecting to Palo Alto SCM API...";
+            }
+            lucide.createIcons();
+
+            try {
+                const res = await fetch('/api/demo/bulk-provision', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ attach_sessions: true })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast("SCM Bulk Provisioning Complete", data.message);
+                    if (statusDiv) {
+                        statusDiv.innerText = `✓ Synced ${data.data.sims_provisioned_count} SIMs, ${data.data.groups_configured_count} groups, ${data.data.sessions_attached_count} sessions.`;
+                    }
+                    await refreshAll();
+                } else {
+                    showToast("Bulk Provisioning Warning", data.message || data.error, "warning");
+                    if (statusDiv) {
+                        statusDiv.innerText = `⚠️ Warnings: ${data.data?.errors?.length || 0} error(s)`;
+                    }
+                }
+            } catch (err) {
+                showToast("Provisioning Error", err.message, "error");
+                if (statusDiv) {
+                    statusDiv.innerText = `✗ Error: ${err.message}`;
+                }
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i data-lucide="upload-cloud" class="w-4 h-4"></i> 🚀 Push Active Fleet to SCM Cloud';
+                lucide.createIcons();
+            }
         }
 
         async function loadScenarioPreset(presetId) {

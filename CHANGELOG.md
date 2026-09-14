@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.3.5] - 2026-09-14
+
+### Added & Improved
+- **1-Click SCM Cloud Bulk Provisioning & Fleet Synchronization**:
+  - **Automated SCM Cloud Provisioning Pipeline**: Added `bulk_provision_fleet` in `Prisma5GClient` and `POST /api/demo/bulk-provision` to automatically create missing SCM user groups (`POST /mt/manage/5g/userGroup`), register SIM hardware identifiers (`POST /mt/manage/5g/tenantUEInfo`), assign member identities to security groups (`PUT /mt/manage/5g/userGroup/{id}`), and inject active 5G session telemetry (`POST /mt/manage/5g/register/ue`).
+  - **Import with Instant Cloud Sync**: Added `[x] Also Bulk Provision to SCM Cloud upon import` checkbox in Demo Packs modal to automatically sync imported topologies with Palo Alto Networks Strata Cloud Manager.
+  - **1-Click Active Fleet Push**: Added `🚀 Push Active Fleet to SCM Cloud` button in Demo Packs modal for on-demand cloud deployment.
+  - **Automated Test Coverage**: Added `tests/test_bulk_provision.py` bringing total automated test suite to 66 passing tests.
+
+---
+
 ## [2.3.4] - 2026-09-14
 
 ### Added & Improved

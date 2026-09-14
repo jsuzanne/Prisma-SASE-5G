@@ -75,6 +75,13 @@ Allows instant drag-and-drop or file upload of any previously exported Demo Pack
 | 🏭 **Smart Factory 4.0** | Autonomous Mobile Robots (MiR250 AGVs), Siemens S7-1500 PLCs, Fanuc M-20iD robotic arms, Cognex AI visual inspection cameras. | `10.56.0.193` to `10.56.0.201` |
 | ⚡ **EV Charging Infrastructure** | Kempower 350kW DC ultra-fast chargers, Schneider EVlink AC destination chargers, OCPP central payment gateways. | `10.56.0.193` to `10.56.0.198` |
 
+### ⚡ D. 1-Click Bulk Provisioning to SCM Cloud
+Sales engineers can push an entire imported or active fleet directly to **Palo Alto Networks Strata Cloud Manager** in a single operation:
+1. **Automated Group Creation**: Creates missing SCM user groups (`POST /mt/manage/5g/userGroup`).
+2. **SIM Hardware Registration**: Provisions Tenant UE Info records with IMSI/IMEI/APN (`POST /mt/manage/5g/tenantUEInfo`).
+3. **Group Assignment**: Updates SCM user groups with member identity IDs (`PUT /mt/manage/5g/userGroup/{id}`).
+4. **Session Telemetry**: Injects active 5G session telemetry (`POST /mt/manage/5g/register/ue`).
+
 ---
 
 ## 🔄 3. Network Reconnection Workflow (Offline ➔ Online Transition)
@@ -101,6 +108,7 @@ When internet connectivity or access to Strata Cloud Manager microservices is re
 | `GET` | `/api/mode` | Retrieve current operational mode (`live` vs `standalone`). |
 | `POST` | `/api/mode` | Switch operational mode (`{"standalone_mode": true/false}`). Persisted in `config.json` and `.env`. |
 | `GET` | `/api/demo/export` | Download complete fleet state as a standalone JSON Demo Pack. |
-| `POST` | `/api/demo/import` | Import and apply a complete JSON Demo Pack. |
+| `POST` | `/api/demo/import` | Import and apply a complete JSON Demo Pack (with optional `push_to_scm: true`). |
+| `POST` | `/api/demo/bulk-provision` | Bulk provision the active fleet or provided pack directly to Strata Cloud Manager. |
 | `GET` | `/api/demo/presets` | List available built-in scenarios (Retail, Smart Factory, EV Hub). |
 | `POST` | `/api/demo/presets/load/{preset_id}` | Instantly load and activate a built-in scenario preset. |

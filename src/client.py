@@ -808,3 +808,163 @@ class Prisma5GClient:
             "interconnect_items": interconnects,
             "compute_region": interconnects[0].get("computeRegion", "europe-west9") if interconnects else "europe-west9",
         }
+
+    # --------------------------------------------------------------------------
+    # 4. Bulk Fleet Provisioning & SCM Cloud Synchronization
+    # --------------------------------------------------------------------------
+
+    def bulk_provision_fleet(
+        self,
+        pack_data: Dict[str, Any],
+        attach_sessions: bool = True,
+        target_tsg_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Bulk provision an entire 5G fleet to Palo Alto Networks Strata Cloud Manager.
+        
+        Orchestration Pipeline:
+        1. Parse SIM items and User Groups from pack_data.
+        2. Create / Register Tenant UE Info for all SIM cards.
+        3. Create missing SCM User Groups and update their member identity lists.
+        4. (Optional) Inject real-time 5G session telemetry for active devices.
+        """
+        tsg = target_tsg_id or pack_data.get("tenant_info", {}).get("tsg_id") or self.config.tsg_id
+        default_apn = pack_data.get("tenant_info", {}).get("default_apn") or self.config.default_apn or "sasetest"
+        
+        sim_inventory = pack_data.get("sim_inventory", [])
+        sim_metadata = pack_data.get("sim_metadata", {})
+        active_sessions = pack_data.get("active_sessions", {})
+        user_groups = pack_data.get("user_groups", [])
+
+        # Build comprehensive SIM list from inventory + metadata
+        sim_map: Dict[str, Dict[str, Any]] = {}
+        for s in sim_inventory:
+            imsi = str(s.get("imsi", "")).strip()
+            if imsi:
+                sim_map[imsi] = {
+                    "imsi": imsi,
+                    "imei": str(s.get("imei", "") or "350000000000000").strip(),
+                    "apn": str(s.get("apn") or default_apn).strip(),
+                    "groups": s.get("groups", []),
+                }
+        
+        for imsi_raw, meta in sim_metadata.items():
+            imsi = str(imsi_raw).strip()
+            if imsi not in sim_map:
+                sim_map[imsi] = {
+                    "imsi": imsi,
+                    "imei": str(meta.get("imei") or "350000000000000").strip(),
+                    "apn": str(meta.get("apn") or default_apn).strip(),
+                    "groups": meta.get("groups", []),
+                }
+            elif meta.get("groups") and not sim_map[imsi].get("groups"):
+                sim_map[imsi]["groups"] = meta.get("groups")
+
+        provisioned_sims = []
+        sim_identity_map = {}  # imsi -> identity_id
+        errors = []
+
+        # 1. Provision Tenant UE Info for each SIM
+        for imsi, item in sim_map.items():
+            try:
+                res = self.create_tenant_ue(
+                    imsi=imsi,
+                    imei=item["imei"],
+                    apn=item["apn"],
+                    tsg_id=tsg,
+                )
+                ident_id = res.get("id") or res.get("identity_id") or f"id_{imsi}"
+                sim_identity_map[imsi] = ident_id
+                provisioned_sims.append({"imsi": imsi, "identity_id": ident_id, "status": "created"})
+            except Exception as e:
+                err_str = str(e)
+                ident_id = f"id_{imsi}"
+                sim_identity_map[imsi] = ident_id
+                if "already exists" in err_str.lower() or "conflict" in err_str.lower():
+                    provisioned_sims.append({"imsi": imsi, "identity_id": ident_id, "status": "existing"})
+                else:
+                    errors.append(f"SIM {imsi}: {err_str}")
+
+        # 2. Fetch existing groups on SCM
+        existing_groups_map = {}
+        try:
+            cur_groups_res = self.list_user_groups(tsg)
+            cur_groups = cur_groups_res.get("models", []) if isinstance(cur_groups_res, dict) else (cur_groups_res if isinstance(cur_groups_res, list) else [])
+            for g in cur_groups:
+                if isinstance(g, dict):
+                    gname = g.get("group_name") or g.get("name")
+                    gid = g.get("id") or g.get("group_id")
+                else:
+                    gname = getattr(g, "group_name", None) or getattr(g, "name", None)
+                    gid = getattr(g, "id", None) or getattr(g, "group_id", None)
+                if gname and gid:
+                    existing_groups_map[gname] = gid
+        except Exception as e:
+            logger.warning("Could not list user groups during bulk provision: %s", e)
+
+        # 3. Collect desired group memberships
+        group_members: Dict[str, List[str]] = {}
+        for g in user_groups:
+            gname = g.get("group_name") or g.get("name")
+            if gname:
+                group_members.setdefault(gname, [])
+                for m_id in g.get("identity_id", []):
+                    if m_id not in group_members[gname]:
+                        group_members[gname].append(m_id)
+
+        for imsi, item in sim_map.items():
+            ident_id = sim_identity_map.get(imsi) or f"id_{imsi}"
+            for grp in item.get("groups", []):
+                if grp:
+                    group_members.setdefault(grp, [])
+                    if ident_id not in group_members[grp]:
+                        group_members[grp].append(ident_id)
+
+        configured_groups = []
+        for gname, id_list in group_members.items():
+            if not id_list and sim_identity_map:
+                id_list = [next(iter(sim_identity_map.values()))]
+
+            grp_id = existing_groups_map.get(gname)
+            try:
+                if not grp_id:
+                    res = self.create_user_group(group_name=gname, tsg_id=tsg, identity_ids=id_list)
+                    grp_id = res.get("id") or res.get("group_id")
+                    configured_groups.append({"group_name": gname, "group_id": grp_id, "action": "created", "members_count": len(id_list)})
+                else:
+                    self.update_user_group(group_id=grp_id, group_name=gname, identity_ids=id_list, tsg_id=tsg)
+                    configured_groups.append({"group_name": gname, "group_id": grp_id, "action": "updated", "members_count": len(id_list)})
+            except Exception as e:
+                errors.append(f"Group {gname}: {str(e)}")
+
+        # 4. Attach 5G Sessions if requested
+        attached_sessions = []
+        if attach_sessions:
+            for imsi, sess_info in active_sessions.items():
+                ip = sess_info.get("ipv4_addr") if isinstance(sess_info, dict) else str(sess_info)
+                if ip:
+                    imei = sess_info.get("imei") if isinstance(sess_info, dict) else sim_map.get(imsi, {}).get("imei", "350000000000000")
+                    apn = sess_info.get("apn") if isinstance(sess_info, dict) else sim_map.get(imsi, {}).get("apn", default_apn)
+                    try:
+                        sess = UESession(
+                            imsi=str(imsi),
+                            imei=str(imei),
+                            apn=str(apn),
+                            ip_type="IPv4",
+                            ipv4_addr=str(ip),
+                        )
+                        self.register_ue_session(sess)
+                        attached_sessions.append({"imsi": imsi, "ipv4_addr": ip, "status": "attached"})
+                    except Exception as e:
+                        errors.append(f"Session {imsi} ({ip}): {str(e)}")
+
+        return {
+            "success": len(errors) == 0 or len(provisioned_sims) > 0,
+            "tsg_id": tsg,
+            "sims_provisioned_count": len(provisioned_sims),
+            "sims_provisioned": provisioned_sims,
+            "groups_configured_count": len(configured_groups),
+            "groups_configured": configured_groups,
+            "sessions_attached_count": len(attached_sessions),
+            "sessions_attached": attached_sessions,
+            "errors": errors,
+        }

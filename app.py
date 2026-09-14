@@ -229,6 +229,12 @@ class OperationalModeModel(BaseModel):
     standalone_mode: bool = False
 
 
+class BulkProvisionModel(BaseModel):
+    pack_data: Optional[Dict[str, Any]] = None
+    attach_sessions: bool = True
+    target_tsg_id: Optional[str] = None
+
+
 # -----------------------------------------------------------------------------
 # API Endpoints: System, Operational Mode & Demo Packs
 # -----------------------------------------------------------------------------
@@ -334,17 +340,55 @@ def export_demo_fleet(scenario_name: Optional[str] = "Prisma SASE 5G Demo Fleet"
 
 
 @app.post("/api/demo/import")
-def import_demo_fleet(payload: Dict[str, Any]):
-    """Import a Demo Pack JSON into persistent local state."""
+def import_demo_fleet(payload: Dict[str, Any], push_to_scm: bool = False):
+    """Import a Demo Pack JSON into persistent local state, with optional immediate SCM Bulk Provisioning."""
     try:
-        res = import_demo_pack(payload)
+        # Check if payload wraps pack or is direct pack
+        pack_data = payload.get("pack") if ("pack" in payload and isinstance(payload.get("pack"), dict)) else payload
+        push_flag = payload.get("push_to_scm", push_to_scm) if isinstance(payload, dict) else push_to_scm
+        
+        res = import_demo_pack(pack_data)
+        
+        scm_result = None
+        if push_flag:
+            try:
+                client = get_current_client()
+                scm_result = client.bulk_provision_fleet(pack_data, attach_sessions=True)
+            except Exception as scm_err:
+                scm_result = {"success": False, "error": str(scm_err)}
+
         return {
             "success": True,
             "data": res,
-            "message": f"Successfully imported demo pack '{res.get('scenario_name')}' with {res.get('sims_count')} SIM(s) and {res.get('active_sessions_count')} active session(s).",
+            "scm_provisioning": scm_result,
+            "message": f"Successfully imported demo pack '{res.get('scenario_name')}' with {res.get('sims_count')} SIM(s) and {res.get('active_sessions_count')} active session(s)." + (f" SCM Bulk Sync: {scm_result.get('sims_provisioned_count', 0)} SIM(s) pushed to SCM." if scm_result else ""),
         }
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/api/demo/bulk-provision")
+def bulk_provision_to_scm(payload: Optional[BulkProvisionModel] = None):
+    """Bulk provision a full demo pack or the active local fleet directly to Strata Cloud Manager."""
+    try:
+        req = payload or BulkProvisionModel()
+        pack = req.pack_data
+        if not pack:
+            pack = export_demo_pack(scenario_name="Active 5G Fleet Snapshot")
+        
+        client = get_current_client()
+        result = client.bulk_provision_fleet(
+            pack_data=pack,
+            attach_sessions=req.attach_sessions,
+            target_tsg_id=req.target_tsg_id,
+        )
+        return {
+            "success": result.get("success", False),
+            "data": result,
+            "message": f"SCM Bulk Provisioning complete: {result.get('sims_provisioned_count', 0)} SIM(s) provisioned, {result.get('groups_configured_count', 0)} group(s) synchronized, {result.get('sessions_attached_count', 0)} session(s) attached.",
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @app.get("/api/demo/presets")
