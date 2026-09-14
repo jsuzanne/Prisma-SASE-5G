@@ -448,7 +448,7 @@ Interactive Swagger documentation is available at **[http://localhost:8000/docs]
 
 ## 📚 Architecture Guides
 
-- [Guide des Modes Opérationnels, Packs Démo 1-Click & Résilience Offline](docs/OFFLINE_DEMO_AND_DEMO_PACKS.md)
+- [Operational Modes, 1-Click Demo Packs & Offline Resilience Guide](docs/OFFLINE_DEMO_AND_DEMO_PACKS.md)
 - [5G Zero-Trust Subscriber Security Groups & Quarantine Architecture Guide](docs/5G_ZERO_TRUST_SECURITY_GROUPS_GUIDE.md)
 
 ---

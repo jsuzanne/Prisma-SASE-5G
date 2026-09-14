@@ -103,7 +103,15 @@ curl -X POST http://localhost:8000/api/presets/populate \
   -d '{"vertical_id": "all", "auto_attach_session": true}'
 ```
 
-### 3. Resetting to Clean / Raw SCM Mode
+### 3. Trade Show Offline Resilience & 1-Click Demo Packs
+- **No Wi-Fi / Cloud Outage Protection**: If trade show internet is degraded or SCM cloud experiences maintenance (`503`), toggle **Standalone Sandbox Mode** in **Settings ➔ Operational Engine & Mode**.
+- **1-Click Scenario Activation**: Click **Demo Packs** in the SIM Inventory toolbar and select:
+  - 🛒 **Retail & Smart POS** (14 SIMs: Ingenico terminals, Zebra scanners, RFID gates).
+  - 🏭 **Smart Factory 4.0** (MiR250 AGVs, Siemens PLCs, Fanuc robots).
+  - ⚡ **EV Charging Hub** (350kW DC fast chargers, AC chargers, payment gateways).
+- **Zero-Latency Realism**: All operations generate authentic cURL commands and simulated 3GPP/SASE 200 OK responses in the Live API Inspector console.
+
+### 4. Resetting to Clean / Raw SCM Mode
 - Click the **`Reset Metadata`** button in the UI or run:
 ```bash
 curl -X POST http://localhost:8000/api/metadata/clear

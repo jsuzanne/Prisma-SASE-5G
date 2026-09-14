@@ -1,106 +1,106 @@
-# 📦 Guide des Modes Opérationnels, Packs Démo 1-Click & Résilience Offline (v2.3.4)
+# 📦 Operational Modes, 1-Click Demo Packs & Offline Resilience Guide (v2.3.4)
 
-Ce document détaille le fonctionnement des **modes opérationnels** (Live SCM Cloud vs Standalone Sandbox), la gestion des **Packs Démo 1-Click (Export/Import JSON)** et les mécanismes de **résilience et réconciliation réseau** de Prisma SASE 5G Manager.
+This document provides a comprehensive overview of the **operational modes** (Live SCM Cloud vs Standalone Sandbox), **1-Click Demo Packs (JSON Export/Import & Presets)**, and the **network resilience & auto-reconciliation engine** in Prisma SASE 5G Manager.
 
 ---
 
-## 🎯 Vue d'Ensemble & Objectifs
+## 🎯 Overview & Key Objectives
 
-Lors de salons professionnels (ex: **SIDO Lyon**, **Mobile World Congress**), de démonstrations client ou de POCs en environnement déconnecté, les présentateurs et Sales Engineers (SE) sont souvent confrontés à deux défis majeurs :
-1. **Absence de connectivité internet** ou réseau Wi-Fi de salon saturé/instable.
-2. **Indisponibilité temporaire des microservices Cloud** (ex: erreurs HTTP `503 Service Unavailable` ou `no healthy upstream`).
+During major trade shows (e.g., **SIDO Lyon**, **Mobile World Congress**), customer innovation center briefings, or on-site client PoCs, sales engineers and solution architects frequently encounter two critical operational challenges:
+1. **Unreliable or absent internet connectivity** (e.g., congested venue Wi-Fi, air-gapped corporate networks).
+2. **Temporary cloud microservice outages** (e.g., HTTP `503 Service Unavailable` or `no healthy upstream` during backend maintenance).
 
-Prisma SASE 5G intègre une architecture résiliente à double moteur permettant de garantir des démonstrations fluides, interactives et réalistes en toutes circonstances.
+Prisma SASE 5G Manager incorporates a resilient dual-engine architecture designed to deliver uninterrupted, realistic, and interactive 5G security demonstrations under any conditions.
 
 ```mermaid
 graph TD
-    User([Présentateur / Audience]) --> WebUI[Web UI & API Inspector]
-    WebUI --> Switch{Mode Opérationnel}
+    User([Presenter / Audience]) --> WebUI[Web UI & API Inspector]
+    WebUI --> Switch{Operational Mode}
     
-    Switch -->|Mode Défaut| LiveEngine[Mode Live SCM Cloud]
+    Switch -->|Default Mode| LiveEngine[Live SCM Cloud Mode]
     LiveEngine --> PANWCloud[Palo Alto Networks Strata Cloud Manager]
-    LiveEngine -.->|En cas d'erreur 503| SnapshotFallback[⚡ Local Snapshot Fallback]
+    LiveEngine -.->|On 503 Outage| SnapshotFallback[⚡ Local Snapshot Fallback]
     
-    Switch -->|Mode Optionnel| StandaloneEngine[Mode Standalone Demo Sandbox]
-    StandaloneEngine --> SimEngine[Simulateur 3GPP & SASE 0ms Latence]
+    Switch -->|Optional Demo| StandaloneEngine[Standalone Demo Sandbox Mode]
+    StandaloneEngine --> SimEngine[3GPP & SASE 0ms Simulation Engine]
     SimEngine --> LocalStore[(active_sessions.json / sim_metadata.json)]
     
-    WebUI --> DemoPacks[Packs Démo 1-Click]
-    DemoPacks --> ExportJSON[Export Fichier .json]
-    DemoPacks --> ImportJSON[Import Fichier .json]
-    DemoPacks --> Presets[Scénarios Prédéfinis: Retail / Factory / EV Hub]
+    WebUI --> DemoPacks[1-Click Demo Packs]
+    DemoPacks --> ExportJSON[Export .json File]
+    DemoPacks --> ImportJSON[Import .json File]
+    DemoPacks --> Presets[Built-in Scenarios: Retail / Factory / EV Hub]
 ```
 
 ---
 
-## ⚙️ 1. Les Modes Opérationnels
+## ⚙️ 1. Operational Modes
 
-Le mode actif est sélectionnable dans l'onglet **Settings ➔ Operational Engine & Mode**.
+The active operational engine can be toggled at any time in **Settings ➔ Operational Engine & Mode**.
 
-### A. Mode Live SCM Cloud API *(Mode par défaut)*
-* **Indicateur visuel** : Pilule verte émeraude **`SCM Online`** dans la barre supérieure.
-* **Fonctionnement** : Toutes les opérations (inventaire, création de SIM, groupes de sécurité, attachement de session 5G) sont envoyées en temps réel via HTTPS à l'API Palo Alto Networks Strata Cloud Manager (`https://api.sase.paloaltonetworks.com`) avec authentification OAuth2 Bearer Token.
-* **Inspecteur d'API** : Affiche les véritables temps de réponse du Cloud (~180ms - 350ms) et les payloads JSON retournés par SCM.
+### A. Live SCM Cloud API Mode *(Strict Default)*
+* **Visual Indicator**: Emerald green pill **`SCM Online`** in the top navigation bar.
+* **Architecture**: Every action (SIM inventory listing, SIM provisioning, subscriber security group management, 5G session attach/detach) is dispatched in real-time via HTTPS to the official Palo Alto Networks Strata Cloud Manager API (`https://api.sase.paloaltonetworks.com`) authenticated with OAuth2 Bearer Tokens.
+* **Live API Inspector**: Displays authentic Strata Cloud Manager HTTP response latencies (~180ms – 350ms), status codes, and JSON response bodies.
 
-### B. Mode Standalone Demo Sandbox *(100% Offline)*
-* **Indicateur visuel** : Pilule cyan **`⚡ Standalone Demo`** et badge **`⚡ Standalone Sandbox`** dans les modales.
-* **Fonctionnement** : Aucun appel réseau externe n'est émis. Le moteur simule instantanément (~20ms) les réponses conformes aux spécifications 3GPP et Palo Alto Networks :
-  - Découverte multitenant TSG (`Root MSP` et tenants enfants).
-  - Validation et état de la liaison Interconnect (`europe-west9`, 100 Mbps Up).
-  - Enregistrement / Déréférencement de session UPF (`200 OK Accepted`).
-  - Déplacement de SIMs entre groupes de sécurité (`Permissive` vs `Restrictive`).
-* **Inspecteur d'API** : Continue d'enregistrer en direct les requêtes HTTP simulées et génère les commandes cURL complètes pour la projection devant l'audience.
+### B. Standalone Demo Sandbox Mode *(100% Offline)*
+* **Visual Indicator**: Cyan pill **`⚡ Standalone Demo`** and dynamic **`⚡ Standalone Sandbox`** badges in dialogs.
+* **Architecture**: No outbound network requests are dispatched to external cloud endpoints. The internal engine synthesizes immediate (~20ms) responses fully compliant with 3GPP and Palo Alto Networks specifications:
+  - Multitenant TSG discovery (`Root MSP` and child tenants).
+  - Interconnect link status and telemetry (`europe-west9`, 100 Mbps Up).
+  - UPF session attach/detach operations (`200 OK Accepted`).
+  - Subscriber security policy group modifications (`Permissive` vs `Restrictive`).
+* **Live API Inspector**: Captures simulated HTTP transactions and generates authentic cURL commands with full headers and payloads for live projection to client audiences.
 
 ---
 
-## 🧰 2. Packs Démo 1-Click (Export, Import & Scénarios)
+## 🧰 2. 1-Click Demo Packs (Export, Import & Built-in Scenarios)
 
-Accessible via le bouton **`Demo Packs`** dans la barre d'outils de l'inventaire SIM.
+Accessible via the **`Demo Packs`** button in the SIM Inventory toolbar.
 
-### 📥 A. Export de Flotte (.json)
-Génère et télécharge un fichier `prisma_5g_demo_pack.json` autonome contenant :
-* La liste complète des SIMs avec leurs IMSIs, IMEIs et APNs.
-* Les métadonnées d'enrichissement métier (labels, types de terminaux, icônes, verticales).
-* Les adresses IP des sessions 5G actives (`active_sessions.json`).
-* Les affectations aux groupes de sécurité.
+### 📥 A. Fleet Export (.json)
+Generates and downloads a self-contained `prisma_5g_demo_pack.json` archive containing:
+* Complete SIM card inventory with IMSIs, IMEIs, and APNs.
+* Business vertical metadata overlays (device labels, equipment categories, icons, verticals).
+* Active 5G session IP allocations (`active_sessions.json`).
+* Subscriber security group mappings and policy assignments.
 
-### 📤 B. Import de Flotte (.json)
-Permet d'importer par glisser-déposer n'importe quel pack démo `.json`. La topologie 5G est restaurée en 1 seconde.
+### 📤 B. Fleet Import (.json)
+Allows instant drag-and-drop or file upload of any previously exported Demo Pack `.json` file to restore the entire 5G topology in under one second.
 
-### 🚀 C. Scénarios Prêts à l'Emploi Intégrés
+### 🚀 C. Built-in Trade Show Scenarios
 
-| Scénario | Description & Équipements Inclus | Adresses IP Allouées |
+| Scenario | Description & Included Equipment | Allocated IP Pool |
 | :--- | :--- | :--- |
-| 🛒 **Retail & Smart POS** | 14 SIMs : Terminaux de paiement Ingenico Move 5000 / Desk 2600, douchettes code-barres Zebra TC58, portiques RFID Nedap EAS. | `10.56.0.193` à `10.56.0.202` |
-| 🏭 **Smart Factory 4.0** | Robots mobiles autonomes MiR250 AGV, automates Siemens S7-1500, bras robotisés Fanuc M-20iD, caméras d'inspection IA Cognex. | `10.56.0.193` à `10.56.0.201` |
-| ⚡ **EV Charging Infrastructure** | Bornes de recharge rapide DC 350kW Kempower, bornes AC Schneider EVlink, passerelles de paiement centralisées OCPP. | `10.56.0.193` à `10.56.0.198` |
+| 🛒 **Retail & Smart POS** | 14 SIMs: Ingenico Move 5000 / Desk 2600 payment terminals, Zebra TC58 barcode scanners, Nedap EAS RFID anti-theft gates. | `10.56.0.193` to `10.56.0.202` |
+| 🏭 **Smart Factory 4.0** | Autonomous Mobile Robots (MiR250 AGVs), Siemens S7-1500 PLCs, Fanuc M-20iD robotic arms, Cognex AI visual inspection cameras. | `10.56.0.193` to `10.56.0.201` |
+| ⚡ **EV Charging Infrastructure** | Kempower 350kW DC ultra-fast chargers, Schneider EVlink AC destination chargers, OCPP central payment gateways. | `10.56.0.193` to `10.56.0.198` |
 
 ---
 
-## 🔄 3. Scénario de Reconnexion Réseau (Transition Offline ➔ Online)
+## 🔄 3. Network Reconnection Workflow (Offline ➔ Online Transition)
 
-Lorsque la connectivité internet ou l'accès aux microservices SCM est rétabli :
+When internet connectivity or access to Strata Cloud Manager microservices is restored:
 
-1. **Activation du mode Live** :
-   Dans **Settings**, cochez **Live SCM Cloud API (Default)**.
-2. **Ré-authentification OAuth2 automatique** :
-   L'application négocie un nouveau jeton d'accès auprès du serveur d'authentification Palo Alto Networks.
-3. **Synchronisation transparente (`refreshAll()`)** :
-   - **Inventaire SIM** : Rechargé depuis les API SCM en conservant vos labels métiers locaux.
-   - **Groupes d'utilisateurs** : Rechargés depuis Strata Cloud Manager.
-   - **Session Telemetry** : Les prochaines actions d'Attach/Detach injecteront directement la télémétrie dans le cloud SCM en temps réel.
-4. **Protection Anti-503 (Graceful Fallback)** :
-   Si le cloud subit une micro-coupure temporaire (*no healthy upstream*), l'application bascule automatiquement et silencieusement sur le snapshot local avec la mention `⚡ Local Snapshot`, évitant tout écran blanc ou message d'erreur bloquant.
+1. **Enable Live Mode**:
+   In **Settings**, select **Live SCM Cloud API (Default)**.
+2. **Automatic OAuth2 Re-Authentication**:
+   The portal securely acquires a fresh OAuth2 access token from `auth.apps.paloaltonetworks.com`.
+3. **Seamless Data Reconciliation (`refreshAll()`)**:
+   - **SIM Inventory**: Refreshed from live SCM cloud APIs while preserving all local business labels and icons.
+   - **User Security Groups**: Synchronized directly with Strata Cloud Manager.
+   - **Session Telemetry**: Subsequent Attach/Detach actions immediately inject real REST user-plane telemetry into SCM.
+4. **Anti-503 Graceful Fallback**:
+   If the cloud microservices experience intermittent disruptions (*no healthy upstream*), the system automatically serves local snapshots (`⚡ Local Snapshot`), preventing any demo interruption or error screens.
 
 ---
 
-## 🛠️ 4. Endpoints API Dédiés
+## 🛠️ 4. Dedicated REST API Endpoints
 
-| Méthode | Endpoint | Description |
+| Method | Endpoint | Description |
 | :---: | :--- | :--- |
-| `GET` | `/api/mode` | Retourne le mode actuel (`live` ou `standalone`). |
-| `POST` | `/api/mode` | Bascule le mode (`{"standalone_mode": true/false}`). Persisté dans `config.json` et `.env`. |
-| `GET` | `/api/demo/export` | Télécharge le pack démo complet en JSON. |
-| `POST` | `/api/demo/import` | Importe et applique un pack démo JSON. |
-| `GET` | `/api/demo/presets` | Liste les 3 scénarios prédéfinis (Retail, Factory, EV Hub). |
-| `POST` | `/api/demo/presets/load/{preset_id}` | Active instantanément un scénario prédéfini. |
+| `GET` | `/api/mode` | Retrieve current operational mode (`live` vs `standalone`). |
+| `POST` | `/api/mode` | Switch operational mode (`{"standalone_mode": true/false}`). Persisted in `config.json` and `.env`. |
+| `GET` | `/api/demo/export` | Download complete fleet state as a standalone JSON Demo Pack. |
+| `POST` | `/api/demo/import` | Import and apply a complete JSON Demo Pack. |
+| `GET` | `/api/demo/presets` | List available built-in scenarios (Retail, Smart Factory, EV Hub). |
+| `POST` | `/api/demo/presets/load/{preset_id}` | Instantly load and activate a built-in scenario preset. |
