@@ -426,6 +426,7 @@ def update_app_config(payload: ConfigUpdateModel):
                 default_apn=new_apn,
                 default_ip_type=new_ip_type,
                 ue_cidr_blocks=new_cidr,
+                standalone_mode=current_cfg.standalone_mode,
             ),
             target_dir=CONFIG_DIR,
             save_env_backup=True,

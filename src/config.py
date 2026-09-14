@@ -179,6 +179,11 @@ def load_config(config_source: Optional[Union[str, Path]] = None) -> Config:
     default_apn = json_data.get("default_apn") or json_data.get("DEFAULT_APN") or os.getenv("DEFAULT_APN") or "sasetest"
     default_ip_type = json_data.get("default_ip_type") or json_data.get("DEFAULT_IP_TYPE") or os.getenv("DEFAULT_IP_TYPE") or "IPv4"
     ue_cidr_blocks = json_data.get("ue_cidr_blocks") or json_data.get("UE_CIDR_BLOCKS") or os.getenv("PANW_UE_CIDR_BLOCKS") or os.getenv("UE_CIDR_BLOCKS") or "10.56.0.192/27,10.56.0.224/27"
+    raw_standalone = json_data.get("standalone_mode") if "standalone_mode" in json_data else (json_data.get("PANW_STANDALONE_MODE") or os.getenv("PANW_STANDALONE_MODE") or False)
+    if isinstance(raw_standalone, str):
+        standalone_mode = raw_standalone.lower() in ("true", "1", "yes", "on")
+    else:
+        standalone_mode = bool(raw_standalone)
 
     config = Config(
         client_id=client_id,
@@ -190,6 +195,7 @@ def load_config(config_source: Optional[Union[str, Path]] = None) -> Config:
         default_apn=default_apn,
         default_ip_type=default_ip_type,
         ue_cidr_blocks=ue_cidr_blocks,
+        standalone_mode=standalone_mode,
     )
     return config
 
@@ -224,6 +230,7 @@ def save_config(
         "default_apn": cfg_dict.get("default_apn") or "sasetest",
         "default_ip_type": cfg_dict.get("default_ip_type") or "IPv4",
         "ue_cidr_blocks": cfg_dict.get("ue_cidr_blocks") or "10.56.0.192/27,10.56.0.224/27",
+        "standalone_mode": bool(cfg_dict.get("standalone_mode", False)),
     }
     json_path.write_text(json.dumps(cleaned_json, indent=2), encoding="utf-8")
 
@@ -239,6 +246,7 @@ def save_config(
         f"DEFAULT_APN={cleaned_json['default_apn']}",
         f"DEFAULT_IP_TYPE={cleaned_json['default_ip_type']}",
         f"UE_CIDR_BLOCKS={cleaned_json['ue_cidr_blocks']}",
+        f"PANW_STANDALONE_MODE={'true' if cleaned_json['standalone_mode'] else 'false'}",
         "",
     ]
     env_content = "\n".join(lines)
@@ -263,6 +271,7 @@ def save_config(
             "DEFAULT_APN": cleaned_json["default_apn"],
             "DEFAULT_IP_TYPE": cleaned_json["default_ip_type"],
             "UE_CIDR_BLOCKS": cleaned_json["ue_cidr_blocks"],
+            "PANW_STANDALONE_MODE": "true" if cleaned_json["standalone_mode"] else "false",
         }.items():
             if v:
                 os.environ[k] = str(v)

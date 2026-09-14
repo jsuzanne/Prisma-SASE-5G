@@ -2741,6 +2741,7 @@
                         <h3 class="text-base font-bold text-white flex items-center gap-2">
                             5G Session Control & IP Telemetry
                             <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">Agentless Zero-Trust</span>
+                            <span id="session-modal-mode-badge" class="px-2 py-0.5 rounded text-[10px] font-mono bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 hidden">⚡ Standalone Sandbox</span>
                         </h3>
                         <p class="text-xs text-gray-400">Inject real-time REST UPF user plane session events to Strata Cloud Manager</p>
                     </div>
@@ -3630,6 +3631,14 @@
                 if (iconStand) {
                     iconStand.setAttribute('data-lucide', 'circle');
                     iconStand.className = "w-4 h-4 text-gray-600 shrink-0";
+                }
+            }
+            const sessionModalBadge = document.getElementById('session-modal-mode-badge');
+            if (sessionModalBadge) {
+                if (standalone) {
+                    sessionModalBadge.classList.remove('hidden');
+                } else {
+                    sessionModalBadge.classList.add('hidden');
                 }
             }
             lucide.createIcons();
@@ -5396,7 +5405,8 @@
                 });
                 const data = await res.json();
                 if (res.ok && data.success) {
-                    logConsole.innerHTML += `<div class="text-emerald-400 font-mono">> [${new Date().toLocaleTimeString()}] ✓ Telemetry Accepted (HTTP ${data.status_code || 202}). IP ${ip} mapped to IMSI ${imsi}.</div>`;
+                    const modeTag = isStandaloneMode ? '<span class="text-cyan-400">[Standalone Sandbox]</span> ' : '';
+                    logConsole.innerHTML += `<div class="text-emerald-400 font-mono">> [${new Date().toLocaleTimeString()}] ✓ ${modeTag}Telemetry Accepted (HTTP ${data.status_code || 202}). IP ${ip} mapped to IMSI ${imsi}.</div>`;
                     showToast("5G Session Attached", `IP ${ip} bound to IMSI ${imsi}`);
                     setSessionModalButtonMode('detach');
                     await fetchSIMs();
@@ -5443,7 +5453,8 @@
                 });
                 const data = await res.json();
                 if (res.ok && data.success) {
-                    logConsole.innerHTML += `<div class="text-emerald-400 font-mono">> [${new Date().toLocaleTimeString()}] ✓ 5G Session Terminated cleanly (HTTP ${data.status_code || 202}). IP ${ip} released.</div>`;
+                    const modeTag = isStandaloneMode ? '<span class="text-cyan-400">[Standalone Sandbox]</span> ' : '';
+                    logConsole.innerHTML += `<div class="text-emerald-400 font-mono">> [${new Date().toLocaleTimeString()}] ✓ ${modeTag}5G Session Terminated cleanly (HTTP ${data.status_code || 202}). IP ${ip} released.</div>`;
                     showToast("5G Session Detached", `IP ${ip} released for IMSI ${imsi}`);
                     setSessionModalButtonMode('attach');
                     await fetchSIMs();

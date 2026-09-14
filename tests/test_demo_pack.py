@@ -59,11 +59,22 @@ class TestDemoPackSystem(unittest.TestCase):
         self.assertTrue(post_res.json()["standalone_mode"])
         self.assertEqual(post_res.json()["mode"], "standalone")
 
+        # Verify /api/status returns standalone mode
+        status_res = client.get("/api/status")
+        self.assertEqual(status_res.status_code, 200)
+        self.assertTrue(status_res.json()["standalone_mode"])
+        self.assertEqual(status_res.json()["status"], "standalone")
+
         # 3. Switch back to live (default)
         post_res2 = client.post("/api/mode", json={"standalone_mode": False})
         self.assertEqual(post_res2.status_code, 200)
         self.assertFalse(post_res2.json()["standalone_mode"])
         self.assertEqual(post_res2.json()["mode"], "live")
+
+        # Verify /api/status returns live mode
+        status_res2 = client.get("/api/status")
+        self.assertEqual(status_res2.status_code, 200)
+        self.assertFalse(status_res2.json()["standalone_mode"])
 
     def test_api_demo_export_endpoint(self):
         resp = client.get("/api/demo/export")
