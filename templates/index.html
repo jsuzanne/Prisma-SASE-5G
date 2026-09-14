@@ -277,6 +277,24 @@
             -webkit-text-fill-color: transparent !important;
         }
 
+        /* Sync Status & Auto Refresh Pills in Light Mode */
+        html.light #sync-status-container {
+            background-color: #f1f5f9 !important;
+            border-color: #cbd5e1 !important;
+            color: #334155 !important;
+        }
+        html.light #last-sync-time {
+            color: #0f172a !important;
+        }
+        html.light #last-sync-relative {
+            color: #64748b !important;
+        }
+        html.light #auto-refresh-interval {
+            background-color: #f1f5f9 !important;
+            border-color: #cbd5e1 !important;
+            color: #334155 !important;
+        }
+
         /* Form Inputs, Selects & Tables */
         html.light input[type="text"],
         html.light input[type="password"],
@@ -1002,9 +1020,32 @@
                     </div>
                 </div>
 
-                <div class="flex items-center gap-3">
-                    <div class="text-right hidden sm:block">
-                        <div class="text-xs text-gray-400">Default Test APN</div>
+                <div class="flex items-center gap-2.5 sm:gap-3">
+                    <!-- Live Sync / Last Refreshed Pill -->
+                    <div id="sync-status-container" class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-900/60 border border-white/10 text-xs text-gray-300 shadow-sm" title="Last successful synchronization with Strata Cloud Manager">
+                        <span class="relative flex h-2 w-2">
+                            <span id="sync-beacon-ping" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span id="sync-beacon-dot" class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                        </span>
+                        <span class="text-gray-400 text-[11px] hidden md:inline">Synced:</span>
+                        <span id="last-sync-time" class="font-mono font-semibold text-gray-200">--:--:--</span>
+                        <span id="last-sync-relative" class="text-[10px] text-gray-400 font-mono">(just now)</span>
+                    </div>
+
+                    <!-- Auto Refresh Interval Dropdown -->
+                    <div class="relative inline-flex items-center">
+                        <select id="auto-refresh-interval" onchange="onAutoRefreshChange()" class="appearance-none bg-gray-900/60 border border-white/10 text-gray-300 text-xs font-medium rounded-xl px-2.5 py-1.5 pr-6 focus:outline-none hover:bg-white/5 transition cursor-pointer" title="Automatic Periodic Refresh Interval">
+                            <option value="0">Auto: Off</option>
+                            <option value="15">Auto: 15s</option>
+                            <option value="30" selected>Auto: 30s</option>
+                            <option value="60">Auto: 1m</option>
+                            <option value="300">Auto: 5m</option>
+                        </select>
+                        <i data-lucide="chevron-down" class="w-3 h-3 absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"></i>
+                    </div>
+
+                    <div class="text-right hidden lg:block">
+                        <div class="text-[10px] text-gray-400">Default Test APN</div>
                         <div id="default-apn-badge" class="text-xs font-mono text-cyan-400 font-bold">sasetest</div>
                     </div>
                     <button onclick="refreshAll(this)" class="px-3.5 py-2 rounded-xl glass-panel hover:bg-white/10 text-xs font-medium text-gray-300 flex items-center gap-1.5 transition cursor-pointer" title="Refresh All Data from Strata Cloud Manager">
@@ -1022,6 +1063,9 @@
                             <h2 class="text-xl font-bold text-white tracking-tight flex items-center gap-2.5">
                                 <span>5G SASE Summary</span>
                                 <span class="px-2.5 py-0.5 rounded-full text-[10px] font-mono bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">Live Telemetry</span>
+                                <span id="summary-last-updated-badge" class="hidden sm:inline-flex items-center gap-1 text-[11px] font-mono text-gray-400 px-2 py-0.5 rounded-lg bg-white/5">
+                                    <i data-lucide="clock" class="w-3 h-3 text-cyan-400"></i> <span id="summary-last-updated-text">Updated: --:--:--</span>
+                                </span>
                             </h2>
                             <p class="text-xs text-gray-400 mt-0.5">Status summary of your 5G SASE and connections.</p>
                         </div>
@@ -1389,6 +1433,9 @@
                     </div>
 
                     <div class="flex items-center gap-2 text-xs text-gray-400 justify-between lg:justify-end flex-wrap">
+                        <span id="sim-inventory-last-updated-badge" class="hidden xl:inline-flex items-center gap-1 text-[11px] font-mono text-gray-400 px-2.5 py-1 rounded-xl bg-white/5" title="SIM Inventory synchronization timestamp">
+                            <i data-lucide="clock" class="w-3 h-3 text-cyan-400"></i> <span id="sim-inventory-last-updated-text">Synced: --:--:--</span>
+                        </span>
                         <span id="sim-count-badge" class="px-2.5 py-1 rounded-lg bg-white/5 text-[11px] font-mono text-gray-300">Loading...</span>
                         <span id="offline-resilience-badge" class="hidden px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/25 text-[11px] font-mono text-amber-300 items-center gap-1.5" title="Operating with local snapshot resilience (SCM 5G backend unreachable)"><span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span> Local Snapshot</span>
                         <button onclick="refreshSIMInventory(this)" class="p-2 rounded-xl glass-panel hover:bg-white/10 text-gray-300 hover:text-white transition cursor-pointer" title="Refresh SIM Inventory">
@@ -1470,6 +1517,12 @@
                         </div>
                     </div>
                     <div class="flex items-center gap-2.5 w-full sm:w-auto justify-between sm:justify-end text-xs">
+                        <span id="groups-last-updated-badge" class="hidden sm:inline-flex items-center gap-1 text-[11px] font-mono text-gray-400 px-2.5 py-1.5 rounded-xl bg-white/5" title="Security Groups synchronization timestamp">
+                            <i data-lucide="clock" class="w-3 h-3 text-emerald-400"></i> <span id="groups-last-updated-text">Synced: --:--:--</span>
+                        </span>
+                        <button onclick="refreshGroups(this)" class="p-2 rounded-xl glass-panel hover:bg-white/10 text-gray-300 hover:text-white transition cursor-pointer" title="Refresh Security Groups">
+                            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                        </button>
                         <button onclick="openAddGroupModal()" class="px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs flex items-center gap-1.5 shadow transition">
                             <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add Group
                         </button>
@@ -4332,6 +4385,8 @@
 
                 renderSIMsTable(allSIMs);
                 renderSummaryUEMappings(allSIMs);
+                lastInventoryTimestamp = new Date();
+                if (typeof updateAllRelativeTimestamps === 'function') updateAllRelativeTimestamps();
             } catch (e) {
                 const tbody = document.getElementById('sims-table-body');
                 if (tbody) {
@@ -4633,6 +4688,8 @@
                 allGroups = data.data || [];
                 renderGroups(allGroups);
                 updateSimModalsGroupDropdowns();
+                lastGroupsTimestamp = new Date();
+                if (typeof updateAllRelativeTimestamps === 'function') updateAllRelativeTimestamps();
             } catch (e) {
                 console.error("Groups fetch error", e);
             }
@@ -6033,6 +6090,8 @@
 
                     // Update UE mappings table inside sub-tab
                     renderSummaryUEMappings(allSIMs);
+                    lastSummaryTimestamp = new Date();
+                    if (typeof updateAllRelativeTimestamps === 'function') updateAllRelativeTimestamps();
                 }
             } catch (err) {
                 console.error("Failed to load summary metrics", err);
@@ -6045,6 +6104,22 @@
             try {
                 await fetchSIMs();
                 showToast("SIM Inventory Refreshed", `Loaded ${allSIMs.length} SIM card(s) from Strata Cloud Manager`);
+            } catch (err) {
+                showToast("Refresh Error", err.message, "error");
+            } finally {
+                setTimeout(() => {
+                    if (icon) icon.classList.remove('animate-spin');
+                    lucide.createIcons();
+                }, 500);
+            }
+        }
+
+        async function refreshGroups(btn) {
+            const icon = btn ? btn.querySelector('i, svg') : null;
+            if (icon) icon.classList.add('animate-spin');
+            try {
+                await fetchGroups();
+                showToast("Groups Refreshed", `Loaded ${allGroups.length} Security Policy Group(s) from Strata Cloud Manager`);
             } catch (err) {
                 showToast("Refresh Error", err.message, "error");
             } finally {
@@ -6852,7 +6927,109 @@
                 .replace(/'/g, '&#039;');
         }
 
-        async function refreshAll(btn) {
+        let lastSyncTimestamp = null;
+        let lastInventoryTimestamp = null;
+        let lastGroupsTimestamp = null;
+        let lastSummaryTimestamp = null;
+        let autoRefreshIntervalSec = parseInt(localStorage.getItem('prisma_5g_auto_refresh_sec') !== null ? localStorage.getItem('prisma_5g_auto_refresh_sec') : '30', 10);
+        let autoRefreshTimerId = null;
+
+        function formatClockTime(date) {
+            if (!date) return '--:--:--';
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        }
+
+        function getRelativeTimeStr(date) {
+            if (!date) return '';
+            const seconds = Math.max(0, Math.floor((new Date() - date) / 1000));
+            if (seconds < 5) return '(just now)';
+            if (seconds < 60) return `(${seconds}s ago)`;
+            const mins = Math.floor(seconds / 60);
+            if (mins < 60) return `(${mins}m ago)`;
+            const hours = Math.floor(mins / 60);
+            return `(${hours}h ago)`;
+        }
+
+        function updateAllRelativeTimestamps() {
+            if (lastSyncTimestamp) {
+                const elTime = document.getElementById('last-sync-time');
+                const elRel = document.getElementById('last-sync-relative');
+                const elBeaconPing = document.getElementById('sync-beacon-ping');
+                const elBeaconDot = document.getElementById('sync-beacon-dot');
+                
+                if (elTime) elTime.innerText = formatClockTime(lastSyncTimestamp);
+                if (elRel) elRel.innerText = getRelativeTimeStr(lastSyncTimestamp);
+
+                const seconds = Math.floor((new Date() - lastSyncTimestamp) / 1000);
+                if (elBeaconDot && elBeaconPing) {
+                    if (seconds < 60) {
+                        // Fresh green
+                        elBeaconDot.className = 'relative inline-flex rounded-full h-2 w-2 bg-emerald-500';
+                        elBeaconPing.className = 'animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75';
+                        elBeaconPing.style.display = 'inline-flex';
+                    } else if (seconds < 180) {
+                        // Aging amber
+                        elBeaconDot.className = 'relative inline-flex rounded-full h-2 w-2 bg-amber-500';
+                        elBeaconPing.className = 'animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-50';
+                        elBeaconPing.style.display = 'inline-flex';
+                    } else {
+                        // Stale muted
+                        elBeaconDot.className = 'relative inline-flex rounded-full h-2 w-2 bg-gray-500';
+                        elBeaconPing.style.display = 'none';
+                    }
+                }
+            }
+
+            if (lastSummaryTimestamp) {
+                const el = document.getElementById('summary-last-updated-text');
+                if (el) el.innerText = `Updated ${formatClockTime(lastSummaryTimestamp)} ${getRelativeTimeStr(lastSummaryTimestamp)}`;
+            }
+
+            if (lastInventoryTimestamp) {
+                const el = document.getElementById('sim-inventory-last-updated-text');
+                if (el) el.innerText = `Synced ${formatClockTime(lastInventoryTimestamp)} ${getRelativeTimeStr(lastInventoryTimestamp)}`;
+            }
+
+            if (lastGroupsTimestamp) {
+                const el = document.getElementById('groups-last-updated-text');
+                if (el) el.innerText = `Synced ${formatClockTime(lastGroupsTimestamp)} ${getRelativeTimeStr(lastGroupsTimestamp)}`;
+            }
+        }
+
+        function setupAutoRefresh() {
+            if (autoRefreshTimerId) {
+                clearInterval(autoRefreshTimerId);
+                autoRefreshTimerId = null;
+            }
+
+            const sel = document.getElementById('auto-refresh-interval');
+            if (sel) {
+                sel.value = autoRefreshIntervalSec.toString();
+            }
+
+            if (autoRefreshIntervalSec > 0) {
+                autoRefreshTimerId = setInterval(() => {
+                    if (!document.hidden) {
+                        refreshAll(null, true);
+                    }
+                }, autoRefreshIntervalSec * 1000);
+            }
+        }
+
+        function onAutoRefreshChange() {
+            const sel = document.getElementById('auto-refresh-interval');
+            if (!sel) return;
+            autoRefreshIntervalSec = parseInt(sel.value, 10);
+            localStorage.setItem('prisma_5g_auto_refresh_sec', autoRefreshIntervalSec.toString());
+            setupAutoRefresh();
+            if (autoRefreshIntervalSec > 0) {
+                showToast("Auto-Refresh Enabled", `Dashboard automatically updates every ${autoRefreshIntervalSec}s`);
+            } else {
+                showToast("Auto-Refresh Disabled", `Manual refresh mode active`);
+            }
+        }
+
+        async function refreshAll(btn, silent = false) {
             const icon = btn ? btn.querySelector('i, svg') : null;
             if (icon) icon.classList.add('animate-spin');
             try {
@@ -6867,9 +7044,19 @@
                     loadThroughputChart(),
                     fetchDebuggerLogs()
                 ]);
-                showToast("Data Synchronized", `Refreshed live telemetry and inventory (${allSIMs.length} SIMs) from Strata Cloud Manager`);
+                const now = new Date();
+                lastSyncTimestamp = now;
+                lastSummaryTimestamp = now;
+                lastInventoryTimestamp = now;
+                lastGroupsTimestamp = now;
+                updateAllRelativeTimestamps();
+                if (!silent) {
+                    showToast("Data Synchronized", `Refreshed live telemetry and inventory (${allSIMs.length} SIMs) from Strata Cloud Manager`);
+                }
             } catch (err) {
-                showToast("Refresh Error", err.message, "error");
+                if (!silent) {
+                    showToast("Refresh Error", err.message, "error");
+                }
             } finally {
                 setTimeout(() => {
                     if (icon) icon.classList.remove('animate-spin');
@@ -6886,6 +7073,8 @@
             fetchVerticalPresets();
             setInventoryViewMode(inventoryViewMode);
             lucide.createIcons();
+            setupAutoRefresh();
+            setInterval(updateAllRelativeTimestamps, 1000);
             refreshAll();
 
             // Periodic background check for API log badge count

@@ -5,6 +5,16 @@ All notable changes to **Prisma SASE 5G Manager** are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.6] - 2026-09-14
+
+### Added & Improved
+- **Dashboard Real-Time Refresh Status & Auto-Refresh Interval Engine**:
+  - **Live Sync Status Badge in Top Navbar**: Added real-time timestamp display (`HH:MM:SS`) with dynamic relative elapsed time ticker (`(just now)`, `(15s ago)`, `(2m ago)`) and glowing status beacon (🟢 Fresh < 60s, 🟡 Aging 1-3m, ⚪ Muted > 3m).
+  - **Configurable Auto-Refresh Interval**: Added periodic background refresh dropdown selector in navbar (`Off`, `15s`, `30s`, `1m`, `5m`) with local persistence and tab-visibility awareness.
+  - **Per-Section Sync Indicators**: Added synchronized timestamp labels in **5G SASE Summary** (`Updated: HH:MM:SS`), **SIM Inventory** (`Synced: HH:MM:SS`), and **Security Groups & Rules** toolbars.
+  - **Individual Groups Quick Refresh**: Added direct quick-refresh button `refreshGroups()` for Security Policy Groups.
+  - **Light Mode High-Contrast Styling**: Tailored CSS tokens for the sync badge, auto-refresh dropdown, and timestamp indicators across light and dark themes.
+
 ---
 
 ## [2.3.5] - 2026-09-14
