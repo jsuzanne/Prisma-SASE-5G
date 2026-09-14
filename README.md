@@ -98,9 +98,14 @@ Enables full programmatic lifecycle management of User Equipment (UE / SIM Cards
   - Direct top-bar link to [https://stratacloudmanager.paloaltonetworks.com](https://stratacloudmanager.paloaltonetworks.com).
 - **⚙️ In-App Settings & Credentials Manager**:
   - Manage service account credentials (`PANW_CLIENT_ID`, `PANW_CLIENT_SECRET`, `PANW_TSG_ID`, `DEFAULT_APN`) directly from the Web UI with security masking and a live connection test button.
+- **📦 1-Click JSON Demo Packs & Offline Sandbox Mode**:
+  - **1-Click JSON Export & Import**: Export the entire 5G topology (SIMs, hardware IMEIs, dynamic IPs, labels, security groups) to a single portable `.json` file and restore it with one click.
+  - **Built-in Trade Show Scenarios**: Out-of-the-box presets for **Retail & Smart POS** (14 SIMs: Ingenico POS, Zebra scanners, Nedap RFID gates), **Smart Factory 4.0** (MiR250 AGVs, Siemens PLCs, Fanuc robots), and **EV Charging Infrastructure** (350kW DC chargers, AC chargers, OCPP gateways).
+  - **100% Offline Standalone Sandbox Engine**: Optional zero-latency simulation engine enabling sales engineers and presenters to run complete 5G security demos without internet connectivity or SCM access.
+  - **Anti-503 Snapshot Fallback**: Gracefully serves persistent local snapshots if cloud microservices experience temporary outages (`no healthy upstream`), with seamless automatic reconciliation when online.
 - **🧪 Automated Lifecycle Runner & Test Suite**:
   - Interactive 8-step pipeline with live terminal output.
-  - 53 automated unit tests with 100% passing rate on GitHub Actions CI.
+  - 63 automated unit tests with 100% passing rate on GitHub Actions CI.
 
 ---
 
@@ -420,6 +425,12 @@ Interactive Swagger documentation is available at **[http://localhost:8000/docs]
 | `POST` | `/api/sessions/deregister` | Send 5G session terminate event |
 | `GET` | `/api/metrics/summary` | 5G SASE Summary KPI stats (Tenants, Bandwidth, Configured Users, Interconnects) |
 | `GET` | `/api/metrics/throughput` | Real-time Ingress & Egress Throughput Trend time-series points |
+| `GET` | `/api/mode` | Get current operational mode (`live` vs `standalone`) |
+| `POST` | `/api/mode` | Toggle operational mode (`{"standalone_mode": true/false}`) |
+| `GET` | `/api/demo/export` | Export complete fleet snapshot as portable JSON Demo Pack |
+| `POST` | `/api/demo/import` | Import and apply a complete JSON Demo Pack |
+| `GET` | `/api/demo/presets` | List built-in trade show scenarios (Retail, Factory, EV Hub) |
+| `POST` | `/api/demo/presets/load/{id}` | Instant 1-click loading of a built-in scenario preset |
 | `GET` | `/api/debug/logs` | Query real-time API inspector debug logs with cURL and responses |
 | `POST` | `/api/debug/logs/clear` | Clear in-memory debug log buffer |
 | `POST` | `/api/lifecycle/run` | Execute full 8-step lifecycle test pipeline |
@@ -437,6 +448,7 @@ Interactive Swagger documentation is available at **[http://localhost:8000/docs]
 
 ## 📚 Architecture Guides
 
+- [Guide des Modes Opérationnels, Packs Démo 1-Click & Résilience Offline](docs/OFFLINE_DEMO_AND_DEMO_PACKS.md)
 - [5G Zero-Trust Subscriber Security Groups & Quarantine Architecture Guide](docs/5G_ZERO_TRUST_SECURITY_GROUPS_GUIDE.md)
 
 ---
