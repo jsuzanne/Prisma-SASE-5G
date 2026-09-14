@@ -697,27 +697,188 @@
             border-radius: 3px;
         }
 
-        /* Preserve sleek dark terminal background for API Log Stream / Debugger */
-        html.light #log-stream-container,
-        html.light #api-log-stream,
-        html.light .terminal-pane {
-            background-color: #0f172a !important;
-            color: #e2e8f0 !important;
+        /* ==========================================================================
+           11. LIVE API INSPECTOR & DEBUG CONSOLE IN LIGHT MODE (HIGH CONTRAST)
+           ========================================================================== */
+        html.light #modal-api-debugger .glass-panel {
+            background-color: #ffffff !important;
+            border-color: rgba(6, 182, 212, 0.4) !important;
+            box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.15) !important;
         }
-        html.light #log-stream-container .text-white,
-        html.light #api-log-stream .text-white,
-        html.light .terminal-pane .text-white {
-            color: #f8fafc !important;
+        html.light #modal-api-debugger .bg-gray-950\/80,
+        html.light #modal-api-debugger header {
+            background-color: #ffffff !important;
+            border-bottom: 1px solid #e2e8f0 !important;
         }
-        html.light #log-stream-container .text-gray-300,
-        html.light #api-log-stream .text-gray-300,
-        html.light .terminal-pane .text-gray-300 {
+        html.light #modal-api-debugger .bg-gray-950\/50,
+        html.light #modal-api-debugger .bg-gray-950\/70 {
+            background-color: #f8fafc !important;
+            border-color: #e2e8f0 !important;
+        }
+        html.light #modal-api-debugger .bg-gray-900\/60 {
+            background-color: #f1f5f9 !important;
+            border-color: #e2e8f0 !important;
+        }
+        html.light #debugger-search-input {
+            background-color: #ffffff !important;
+            border: 1px solid #cbd5e1 !important;
+            color: #0f172a !important;
+        }
+        html.light #debugger-search-input::placeholder {
+            color: #94a3b8 !important;
+        }
+        html.light .debugger-filter-btn[data-filter] {
+            background-color: #e2e8f0 !important;
+            color: #334155 !important;
+            font-weight: 600 !important;
+        }
+        html.light .debugger-filter-btn[data-filter]:hover {
+            background-color: #cbd5e1 !important;
+            color: #0f172a !important;
+        }
+        html.light .debugger-filter-btn.bg-cyan-500 {
+            background-color: #0284c7 !important;
+            color: #ffffff !important;
+            font-weight: 700 !important;
+        }
+        html.light #debugger-tx-list .bg-gray-900\/40 {
+            background-color: #ffffff !important;
+            border: 1px solid #e2e8f0 !important;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+        }
+        html.light #debugger-tx-list .bg-gray-900\/40:hover {
+            background-color: #f8fafc !important;
+            border-color: #cbd5e1 !important;
+        }
+        html.light #debugger-tx-list .bg-cyan-500\/10 {
+            background-color: #e0f2fe !important;
+            border-color: #0284c7 !important;
+            box-shadow: 0 0 0 1px #0284c7 !important;
+        }
+        html.light #debugger-tx-list .text-gray-200 {
+            color: #0f172a !important;
+            font-weight: 600 !important;
+        }
+        html.light #debugger-tx-list .text-gray-400 {
+            color: #64748b !important;
+        }
+        html.light #debugger-detail-pane {
+            background-color: #f8fafc !important;
+        }
+        html.light #debugger-detail-pane .bg-gray-900\/60,
+        html.light #debugger-detail-pane .bg-gray-900\/40,
+        html.light #debugger-detail-pane .bg-gray-900\/30 {
+            background-color: #ffffff !important;
+            border: 1px solid #e2e8f0 !important;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+        }
+        html.light #debugger-detail-pane .text-white {
+            color: #0f172a !important;
+        }
+        html.light #debugger-detail-pane .text-gray-400 {
+            color: #475569 !important;
+        }
+        /* Razor-sharp Dark Terminal Code Boxes in Light Mode */
+        html.light #debugger-detail-pane pre,
+        html.light #session-log-console,
+        html.light #modal-api-debugger pre {
+            background-color: #0b1120 !important;
+            border: 1px solid #1e293b !important;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3) !important;
+        }
+        html.light #debugger-detail-pane pre.text-cyan-300,
+        html.light #debugger-detail-pane pre .text-cyan-300 {
+            color: #38bdf8 !important;
+        }
+        html.light #debugger-detail-pane pre.text-blue-300,
+        html.light #debugger-detail-pane pre .text-blue-300 {
+            color: #93c5fd !important;
+        }
+        html.light #debugger-detail-pane pre.text-emerald-300,
+        html.light #debugger-detail-pane pre .text-emerald-300 {
+            color: #34d399 !important;
+        }
+        html.light #debugger-detail-pane pre.text-red-300,
+        html.light #debugger-detail-pane pre .text-red-300 {
+            color: #f87171 !important;
+        }
+        html.light #debugger-detail-pane pre.text-purple-300,
+        html.light #debugger-detail-pane pre .text-purple-300 {
+            color: #c084fc !important;
+        }
+        html.light #debugger-detail-pane pre.text-gray-300 {
             color: #cbd5e1 !important;
         }
-        html.light #log-stream-container .text-gray-400,
-        html.light #api-log-stream .text-gray-400,
-        html.light .terminal-pane .text-gray-400 {
-            color: #94a3b8 !important;
+        html.light #debugger-detail-pane .bg-gray-950 {
+            background-color: #0b1120 !important;
+            border: 1px solid #1e293b !important;
+            color: #f8fafc !important;
+        }
+        html.light #debugger-detail-pane .bg-gray-950 .text-cyan-300 {
+            color: #38bdf8 !important;
+        }
+        html.light #session-log-console {
+            color: #34d399 !important;
+        }
+        html.light #session-log-console .text-cyan-400 {
+            color: #38bdf8 !important;
+        }
+        html.light #session-log-console .text-emerald-400 {
+            color: #34d399 !important;
+        }
+        html.light #session-log-console .text-rose-400 {
+            color: #fb7185 !important;
+        }
+        html.light #session-log-console .text-red-400 {
+            color: #f87171 !important;
+        }
+
+        /* Demo Packs & Session Modals Card Contrast in Light Mode */
+        html.light #modal-demo-packs .glass-panel {
+            background-color: #ffffff !important;
+            border-color: rgba(168, 85, 247, 0.4) !important;
+        }
+        html.light #modal-demo-packs .bg-gray-950\/80 {
+            background-color: #ffffff !important;
+            border-bottom: 1px solid #e2e8f0 !important;
+        }
+        html.light #modal-demo-packs .bg-gray-900\/60,
+        html.light #modal-demo-packs .bg-gray-900\/40 {
+            background-color: #f8fafc !important;
+            border: 1px solid #e2e8f0 !important;
+        }
+        html.light #modal-demo-packs .text-white {
+            color: #0f172a !important;
+        }
+        html.light #modal-demo-packs .text-gray-400 {
+            color: #475569 !important;
+        }
+        html.light #modal-demo-packs .bg-amber-500\/5 {
+            background-color: #fffbeb !important;
+            border: 1px solid #fcd34d !important;
+        }
+        html.light #modal-demo-packs .bg-amber-500\/5 .text-white {
+            color: #78350f !important;
+        }
+        html.light #modal-demo-packs .bg-amber-500\/5 .text-gray-400 {
+            color: #92400e !important;
+        }
+
+        /* Session Modal in Light Mode */
+        html.light #modal-session .glass-panel {
+            background-color: #ffffff !important;
+            border-color: rgba(245, 158, 11, 0.4) !important;
+        }
+        html.light #modal-session .text-white {
+            color: #0f172a !important;
+        }
+        html.light #modal-session .text-gray-400 {
+            color: #475569 !important;
+        }
+        html.light #modal-session .bg-gray-900\/80,
+        html.light #modal-session .bg-gray-900\/40 {
+            background-color: #ffffff !important;
+            border: 1px solid #cbd5e1 !important;
         }
     </style>
 </head>
