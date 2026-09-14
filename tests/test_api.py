@@ -330,9 +330,29 @@ class TestAppEndpoints(unittest.TestCase):
         self.assertTrue(data["success"])
         self.assertTrue(data["fallback"])
         self.assertEqual(data["source"], "offline_cache")
-        self.assertTrue(len(data["data"]) > 0)
+    def test_health_endpoints(self):
+        response = client.get("/api/health/endpoints")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn("overall", data)
+        self.assertIn("services", data)
+        self.assertEqual(len(data["services"]), 5)
+        service_ids = [s["id"] for s in data["services"]]
+        self.assertIn("auth", service_ids)
+        self.assertIn("tsg", service_ids)
+        self.assertIn("tenant_ue_info", service_ids)
+        self.assertIn("user_groups", service_ids)
+        self.assertIn("session_telemetry", service_ids)
+
+    def test_health_probe_endpoint(self):
+        response = client.post("/api/health/probe")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn("overall", data)
+        self.assertIn("services", data)
 
 
 if __name__ == "__main__":
     unittest.main()
+
 

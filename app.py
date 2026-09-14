@@ -254,6 +254,180 @@ def get_changelog():
     return {"content": "# Changelog\n\nNo changelog available."}
 
 
+def compute_endpoint_health(config: Config) -> Dict[str, Any]:
+    """Evaluate granular health and fallback state of all core SCM cloud microservices."""
+    logs = api_debug_logger.get_logs(limit=80)
+    
+    service_defs = [
+        {
+            "id": "auth",
+            "name": "IAM OAuth2 Authentication",
+            "endpoint": "https://auth.apps.paloaltonetworks.com/am/oauth2/v1/token",
+            "method": "POST",
+            "path_match": "/oauth2/v1/token",
+            "category": "Identity & Access",
+            "description": "Exchanges service credentials for scoped Bearer tokens.",
+        },
+        {
+            "id": "tsg",
+            "name": "Tenancy & TSG Hierarchy",
+            "endpoint": f"{config.api_base_url}/tenancy/v1/tenant_service_groups",
+            "method": "GET",
+            "path_match": "/tenancy/v1/tenant_service_groups",
+            "category": "Hierarchy & Discovery",
+            "description": "Discovers active TSG root and multi-tenant child hierarchy.",
+        },
+        {
+            "id": "tenant_ue_info",
+            "name": "5G SIM Inventory (Tenant UE Info)",
+            "endpoint": f"{config.api_base_url}/mt/manage/5g/tenantUEInfo/list",
+            "method": "POST",
+            "path_match": "/mt/manage/5g/tenantUEInfo",
+            "category": "5G SIM Inventory",
+            "description": "Lists and registers 5G SIM hardware identities (IMSI, IMEI, ICCID).",
+        },
+        {
+            "id": "user_groups",
+            "name": "5G Security Policy Groups",
+            "endpoint": f"{config.api_base_url}/mt/manage/5g/userGroup/list",
+            "method": "POST",
+            "path_match": "/mt/manage/5g/userGroup",
+            "category": "Policy & Segmentation",
+            "description": "Manages 5G subscriber policy groups and dynamic group assignments.",
+        },
+        {
+            "id": "session_telemetry",
+            "name": "5G UPF Session Telemetry",
+            "endpoint": f"{config.api_base_url}/mt/manage/5g/register/ue",
+            "method": "POST",
+            "path_match": "/mt/manage/5g/register/ue",
+            "category": "Zero-Trust Sessions",
+            "description": "Registers active 5G session IP/IMSI mappings to Prisma SASE.",
+        }
+    ]
+    
+    services = []
+    has_degraded = False
+    has_error = False
+    
+    for s in service_defs:
+        latest_tx = None
+        for tx in logs:
+            tx_path = tx.get("path") or ""
+            tx_url = tx.get("url") or ""
+            if s["path_match"] in tx_path or s["path_match"] in tx_url:
+                latest_tx = tx
+                break
+                
+        if config.standalone_mode:
+            services.append({
+                **s,
+                "status_code": 200,
+                "status_text": "200 OK (Simulated)",
+                "state": "sandbox",
+                "duration_ms": 15.0,
+                "data_source": "Standalone Sandbox",
+                "fallback_active": False,
+                "last_checked": latest_tx.get("time_local") if latest_tx else "Active",
+                "error": None
+            })
+        elif latest_tx:
+            code = latest_tx.get("response_status") or 0
+            dur = latest_tx.get("duration_ms") or 0.0
+            t_loc = latest_tx.get("time_local") or "Recent"
+            err = latest_tx.get("error")
+            
+            if code == 200:
+                services.append({
+                    **s,
+                    "status_code": code,
+                    "status_text": "200 OK",
+                    "state": "operational",
+                    "duration_ms": dur,
+                    "data_source": "Live SCM Cloud",
+                    "fallback_active": False,
+                    "last_checked": t_loc,
+                    "error": None
+                })
+            elif code == 503:
+                has_degraded = True
+                services.append({
+                    **s,
+                    "status_code": code,
+                    "status_text": "503 No Upstream",
+                    "state": "degraded",
+                    "duration_ms": dur,
+                    "data_source": "Local Snapshot Fallback",
+                    "fallback_active": True,
+                    "last_checked": t_loc,
+                    "error": err or "Service temporarily unavailable (no healthy upstream)"
+                })
+            else:
+                has_error = True
+                services.append({
+                    **s,
+                    "status_code": code,
+                    "status_text": f"{code} Error",
+                    "state": "error",
+                    "duration_ms": dur,
+                    "data_source": "Local Snapshot Fallback" if "5g" in s["path_match"] else "Error",
+                    "fallback_active": True,
+                    "last_checked": t_loc,
+                    "error": err or f"HTTP {code} error"
+                })
+        else:
+            if s["id"] == "auth":
+                has_creds = bool(config.client_id and config.client_secret)
+                services.append({
+                    **s,
+                    "status_code": 200 if has_creds else 401,
+                    "status_text": "200 OK" if has_creds else "Missing Credentials",
+                    "state": "operational" if has_creds else "error",
+                    "duration_ms": 0.0,
+                    "data_source": "Live SCM Cloud" if has_creds else "Unconfigured",
+                    "fallback_active": False,
+                    "last_checked": "Configured" if has_creds else "Needs Config",
+                    "error": None if has_creds else "Missing client_id or client_secret"
+                })
+            else:
+                services.append({
+                    **s,
+                    "status_code": None,
+                    "status_text": "Pending Query",
+                    "state": "idle",
+                    "duration_ms": 0.0,
+                    "data_source": "Live SCM Cloud",
+                    "fallback_active": False,
+                    "last_checked": "Idle",
+                    "error": None
+                })
+                
+    if config.standalone_mode:
+        overall = "standalone"
+        overall_label = "Standalone Sandbox"
+        overall_desc = "Running 100% offline in simulated demo sandbox."
+    elif has_degraded:
+        overall = "degraded"
+        overall_label = "SCM 5G Degraded (503)"
+        overall_desc = "Palo Alto Networks 5G microservice returned 503. Protected via Local Snapshot Resilience."
+    elif has_error:
+        overall = "error"
+        overall_label = "SCM Cloud Issues"
+        overall_desc = "One or more cloud services returned an error."
+    else:
+        overall = "operational"
+        overall_label = "All SCM Services Operational"
+        overall_desc = "All monitored Palo Alto Networks cloud endpoints are healthy."
+        
+    return {
+        "overall": overall,
+        "label": overall_label,
+        "description": overall_desc,
+        "services": services,
+        "standalone_mode": bool(config.standalone_mode)
+    }
+
+
 @app.get("/api/status")
 def get_system_status():
     """Get system health, authentication state, connected TSG info, and version."""
@@ -274,8 +448,10 @@ def get_system_status():
         elif config.standalone_mode:
             token_preview = "standalone-sandbox"
 
+        health_data = compute_endpoint_health(config)
+
         return {
-            "status": "standalone" if config.standalone_mode else ("healthy" if (has_creds and not auth_error) else "needs_config"),
+            "status": "standalone" if config.standalone_mode else (health_data["overall"] if (has_creds and not auth_error) else "needs_config"),
             "authenticated": bool(token_preview) or config.standalone_mode,
             "auth_error": auth_error if not config.standalone_mode else None,
             "token_preview": token_preview,
@@ -285,6 +461,7 @@ def get_system_status():
             "default_apn": config.default_apn,
             "default_ip_type": config.default_ip_type,
             "standalone_mode": bool(config.standalone_mode),
+            "health": health_data,
             "version": v_info["version"],
             "version_info": v_info,
         }
@@ -294,9 +471,52 @@ def get_system_status():
             "authenticated": False,
             "auth_error": str(exc),
             "standalone_mode": False,
+            "health": {
+                "overall": "error",
+                "label": "Internal Error",
+                "description": str(exc),
+                "services": [],
+                "standalone_mode": False
+            },
             "version": v_info["version"],
             "version_info": v_info,
         }
+
+
+@app.get("/api/health/endpoints")
+def get_endpoint_health_endpoint():
+    """Get granular health and live status matrix for all SCM cloud endpoints."""
+    config = load_config()
+    return compute_endpoint_health(config)
+
+
+@app.post("/api/health/probe")
+def probe_all_endpoints():
+    """Actively probe live SCM IAM, TSG, and 5G endpoints to refresh the health matrix."""
+    config = load_config()
+    if config.standalone_mode:
+        return compute_endpoint_health(config)
+        
+    client = Prisma5GClient(config)
+    try:
+        # 1. Probe Auth & Tenancy
+        client.get_tenant_hierarchy()
+    except Exception:
+        pass
+        
+    try:
+        # 2. Probe 5G User Groups
+        client.list_user_groups()
+    except Exception:
+        pass
+        
+    try:
+        # 3. Probe 5G Tenant UE Info
+        client.list_tenant_ues()
+    except Exception:
+        pass
+        
+    return compute_endpoint_health(config)
 
 
 @app.get("/api/mode")

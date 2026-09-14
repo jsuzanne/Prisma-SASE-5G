@@ -5,6 +5,18 @@ All notable changes to **Prisma SASE 5G Manager** are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.7] - 2026-09-14
+
+### Added & Improved
+- **SCM Cloud Endpoint Health Box & Granular Status Matrix**:
+  - **Granular Cloud Health Matrix**: Added dedicated backend endpoint `GET /api/health/endpoints` and active probe `POST /api/health/probe` monitoring IAM OAuth2, Tenancy TSG discovery, 5G User Groups, 5G Tenant UE Info, and 5G Session Telemetry.
+  - **Interactive Health Box Modal (`#modal-health-box`)**: Clicking the top navbar status pill opens the comprehensive health matrix showing real-time latency, HTTP status codes, error descriptions, and explicit **Data Source indicators** (`Live SCM Cloud` vs `Local Snapshot Fallback` vs `Standalone Sandbox`).
+  - **Smart Outage Banner on 5G Summary Tab**: When the SCM 5G microservice returns `503 Service Unavailable`, a clear high-contrast alert banner notifies the presenter that IAM is online while inventory is protected via *Local Snapshot Resilience*.
+  - **Status Pill Degraded Mode**: When 5G endpoints return 503, the status pill automatically switches to `🟡 SCM 5G Degraded (503)` with an amber pulse and updates the sync indicator to `Snapshot: (SCM 5G 503)`.
+  - **Automated Tests**: Added endpoint health tests bringing total passing unit tests to 68.
+
+---
+
 ## [2.3.6] - 2026-09-14
 
 ### Added & Improved

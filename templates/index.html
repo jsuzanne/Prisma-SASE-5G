@@ -978,9 +978,9 @@
                         <span id="theme-toggle-label" class="hidden md:inline font-mono text-xs">Light</span>
                     </button>
 
-                    <!-- Clean SCM Online Pill -->
-                    <div id="status-pill" class="flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs sm:text-sm font-medium cursor-pointer hover:bg-emerald-500/20 transition shadow-sm" onclick="switchTab('tab-settings')" title="Connected to Strata Cloud Manager">
-                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <!-- Clean SCM Status Pill (Opens Health Box) -->
+                    <div id="status-pill" class="flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs sm:text-sm font-medium cursor-pointer hover:bg-emerald-500/20 transition shadow-sm" onclick="openHealthBoxModal()" title="Palo Alto Networks SCM Cloud Health Matrix">
+                        <span id="status-pill-dot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                         <span id="status-text" class="hidden sm:inline">SCM Online</span>
                     </div>
 
@@ -1021,13 +1021,13 @@
                 </div>
 
                 <div class="flex items-center gap-2.5 sm:gap-3">
-                    <!-- Live Sync / Last Refreshed Pill -->
-                    <div id="sync-status-container" class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-900/60 border border-white/10 text-xs text-gray-300 shadow-sm" title="Last successful synchronization with Strata Cloud Manager">
+                    <!-- Live Sync / Last Refreshed Pill (Opens Health Box) -->
+                    <div id="sync-status-container" onclick="openHealthBoxModal()" class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-900/60 border border-white/10 text-xs text-gray-300 shadow-sm cursor-pointer hover:border-cyan-500/40 transition" title="Cloud & Endpoint Health Matrix (Click to inspect)">
                         <span class="relative flex h-2 w-2">
                             <span id="sync-beacon-ping" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                             <span id="sync-beacon-dot" class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                         </span>
-                        <span class="text-gray-400 text-[11px] hidden md:inline">Synced:</span>
+                        <span id="last-sync-label" class="text-gray-400 text-[11px] hidden md:inline">Synced:</span>
                         <span id="last-sync-time" class="font-mono font-semibold text-gray-200">--:--:--</span>
                         <span id="last-sync-relative" class="text-[10px] text-gray-400 font-mono">(just now)</span>
                     </div>
@@ -1056,6 +1056,30 @@
 
             <!-- TAB: 5G SASE Summary (SCM Dashboard) -->
             <div id="tab-summary" class="tab-content space-y-6">
+                <!-- SCM Cloud Health Degraded Banner (Visible only when 5G service returns 503 or error) -->
+                <div id="summary-health-alert-banner" class="hidden p-4 rounded-2xl bg-amber-950/40 border border-amber-500/40 text-amber-200 flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-lg">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+                            <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <div class="font-bold text-amber-100 text-xs sm:text-sm flex items-center gap-2">
+                                <span>Palo Alto Networks 5G Cloud Microservice Degraded (503 Service Unavailable)</span>
+                                <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-amber-500/20 text-amber-300 border border-amber-500/30">Local Snapshot Active</span>
+                            </div>
+                            <p class="text-xs text-amber-300/80 mt-0.5">IAM authentication and TSG discovery are active, but the 5G inventory backend is returning 503 ("no healthy upstream"). Live demo is running smoothly via Local Snapshot Resilience.</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0 w-full md:w-auto justify-end">
+                        <button onclick="openHealthBoxModal()" class="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-xs font-semibold text-amber-200 transition cursor-pointer flex items-center gap-1.5">
+                            <i data-lucide="activity" class="w-3.5 h-3.5"></i> Health Matrix
+                        </button>
+                        <button onclick="openApiDebuggerModal()" class="px-3 py-1.5 rounded-xl glass-panel hover:bg-white/10 text-xs text-gray-300 transition cursor-pointer">
+                            Inspect 503 Logs
+                        </button>
+                    </div>
+                </div>
+
                 <!-- Header & Subnav matching SCM -->
                 <div class="glass-panel rounded-2xl p-6 border border-white/10 space-y-4">
                     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -3278,6 +3302,71 @@
         </div>
     </div>
 
+    <!-- MODAL: SCM Cloud & API Endpoint Health Box -->
+    <div id="modal-health-box" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden flex items-center justify-center p-3 sm:p-5">
+        <div class="glass-panel rounded-2xl w-full max-w-4xl border border-white/10 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden bg-gray-950/95 animate-in fade-in zoom-in-95 duration-200">
+            <!-- Modal Header -->
+            <div class="p-5 border-b border-white/10 flex items-center justify-between bg-gradient-to-r from-gray-900/90 to-gray-950/90">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
+                        <i data-lucide="activity" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-white flex items-center gap-2">
+                            <span>Palo Alto Networks SCM Cloud Health Matrix</span>
+                            <span id="health-modal-badge" class="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Operational</span>
+                        </h3>
+                        <p class="text-xs text-gray-400 mt-0.5">Real-time availability and data-source status across IAM, TSG tenancy, and 5G microservices.</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="reprobeHealthEndpoints(this)" class="px-3 py-1.5 rounded-xl glass-panel hover:bg-white/10 text-xs font-semibold text-cyan-300 flex items-center gap-1.5 transition cursor-pointer" title="Actively probe all cloud endpoints now">
+                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Re-Probe Cloud
+                    </button>
+                    <button onclick="closeHealthBoxModal()" class="p-2 rounded-xl text-gray-400 hover:text-white hover:bg-white/10 transition cursor-pointer">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Health Summary Alert Card -->
+            <div id="health-overall-summary-card" class="p-4 mx-5 mt-4 rounded-xl border flex items-start gap-3 bg-emerald-950/30 border-emerald-500/30 text-emerald-300">
+                <i id="health-overall-icon" data-lucide="check-circle" class="w-5 h-5 shrink-0 mt-0.5 text-emerald-400"></i>
+                <div class="flex-1 text-xs space-y-1">
+                    <div id="health-overall-title" class="font-bold text-white text-sm">All SCM Services Operational</div>
+                    <div id="health-overall-desc" class="text-gray-300">All monitored Palo Alto Networks cloud endpoints are healthy and reachable.</div>
+                </div>
+            </div>
+
+            <!-- Endpoint List / Matrix -->
+            <div class="p-5 overflow-y-auto custom-scrollbar space-y-3 flex-1">
+                <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Monitored Cloud Endpoints & Data Sources</div>
+                <div id="health-services-list" class="space-y-2.5">
+                    <!-- Populated dynamically via renderHealthServices() -->
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="p-4 border-t border-white/10 bg-gray-900/60 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+                <div class="text-gray-400 flex items-center gap-2">
+                    <i data-lucide="shield-check" class="w-4 h-4 text-cyan-400"></i>
+                    <span>Offline snapshot resilience protects presentations against cloud API 503 outages.</span>
+                </div>
+                <div class="flex items-center gap-2.5">
+                    <button onclick="closeHealthBoxModal(); openApiDebuggerModal();" class="px-3 py-1.5 rounded-xl glass-panel hover:bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 font-semibold flex items-center gap-1.5 transition cursor-pointer">
+                        <i data-lucide="terminal" class="w-3.5 h-3.5"></i> Open API Inspector
+                    </button>
+                    <button onclick="closeHealthBoxModal(); switchTab('tab-settings');" class="px-3 py-1.5 rounded-xl glass-panel hover:bg-white/10 text-gray-300 font-medium transition cursor-pointer">
+                        SCM Settings
+                    </button>
+                    <button onclick="closeHealthBoxModal()" class="px-4 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-semibold shadow transition cursor-pointer">
+                        Done
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Notification -->
     <div id="toast" class="fixed bottom-6 right-6 z-50 max-w-sm glass-panel rounded-2xl p-4 border border-cyan-500/30 text-xs text-white shadow-2xl hidden flex items-start gap-3 transition-all duration-300">
         <div id="toast-icon" class="text-cyan-400 mt-0.5"><i data-lucide="info" class="w-4 h-4"></i></div>
@@ -4008,32 +4097,231 @@
             }
         }
 
+        let currentHealthData = null;
+
+        function updateOperationalStatusUI(data) {
+            const pill = document.getElementById('status-pill');
+            const text = document.getElementById('status-text');
+            const dot = document.getElementById('status-pill-dot');
+            const alertBanner = document.getElementById('summary-health-alert-banner');
+            
+            const health = data.health || { overall: data.status || 'operational' };
+            currentHealthData = health;
+
+            if (data.standalone_mode) {
+                if (pill) {
+                    pill.className = "flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-purple-500/10 border border-purple-500/30 text-purple-300 text-xs font-medium cursor-pointer hover:bg-purple-500/20 transition shadow-sm";
+                    pill.title = "Operating in 100% Offline Standalone Demo Sandbox (Click for Health Matrix)";
+                }
+                if (dot) dot.className = "w-2 h-2 rounded-full bg-purple-400";
+                if (text) text.innerText = "⚡ Standalone Sandbox";
+                if (alertBanner) alertBanner.classList.add('hidden');
+            } else if (health.overall === 'degraded') {
+                if (pill) {
+                    pill.className = "flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-medium cursor-pointer hover:bg-amber-500/20 transition shadow-sm animate-pulse";
+                    pill.title = "SCM 5G microservice returning 503 (Local Snapshot Active). Click for Health Box.";
+                }
+                if (dot) dot.className = "w-2 h-2 rounded-full bg-amber-400 animate-ping";
+                if (text) text.innerText = "SCM 5G Degraded (503)";
+                if (alertBanner) {
+                    alertBanner.classList.remove('hidden');
+                    alertBanner.classList.add('flex');
+                }
+            } else if (health.overall === 'error' || !data.authenticated) {
+                if (pill) {
+                    pill.className = "flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-medium cursor-pointer hover:bg-red-500/20 transition shadow-sm";
+                    pill.title = "SCM Cloud Error / Unauthenticated. Click for Health Box.";
+                }
+                if (dot) dot.className = "w-2 h-2 rounded-full bg-red-400";
+                if (text) text.innerText = "SCM Offline";
+                if (alertBanner) alertBanner.classList.add('hidden');
+            } else {
+                // Fully operational
+                if (pill) {
+                    pill.className = "flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-medium cursor-pointer hover:bg-emerald-500/20 transition shadow-sm";
+                    pill.title = "All SCM Cloud Services Operational (Click for Health Matrix)";
+                }
+                if (dot) dot.className = "w-2 h-2 rounded-full bg-emerald-400 animate-pulse";
+                if (text) text.innerText = "SCM Online";
+                if (alertBanner) alertBanner.classList.add('hidden');
+            }
+        }
+
+        async function openHealthBoxModal() {
+            const modal = document.getElementById('modal-health-box');
+            if (!modal) return;
+            modal.classList.remove('hidden');
+            try {
+                const res = await fetch('/api/health/endpoints');
+                const data = await res.json();
+                renderHealthServices(data);
+            } catch (err) {
+                console.error("Health fetch error", err);
+            }
+            lucide.createIcons();
+        }
+
+        function closeHealthBoxModal() {
+            const modal = document.getElementById('modal-health-box');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        async function reprobeHealthEndpoints(btn) {
+            const icon = btn ? btn.querySelector('i, svg') : null;
+            if (icon) icon.classList.add('animate-spin');
+            try {
+                const res = await fetch('/api/health/probe', { method: 'POST' });
+                const data = await res.json();
+                renderHealthServices(data);
+                showToast("Health Probed", `Status: ${data.label}`);
+                fetchStatus();
+            } catch (err) {
+                showToast("Probe Error", err.message, "error");
+            } finally {
+                setTimeout(() => {
+                    if (icon) icon.classList.remove('animate-spin');
+                    lucide.createIcons();
+                }, 600);
+            }
+        }
+
+        function renderHealthServices(healthData) {
+            currentHealthData = healthData;
+            const badge = document.getElementById('health-modal-badge');
+            const summaryCard = document.getElementById('health-overall-summary-card');
+            const summaryTitle = document.getElementById('health-overall-title');
+            const summaryDesc = document.getElementById('health-overall-desc');
+            const summaryIcon = document.getElementById('health-overall-icon');
+            const listContainer = document.getElementById('health-services-list');
+
+            if (!healthData) return;
+
+            // Update modal header badge & summary card
+            if (healthData.overall === 'operational') {
+                if (badge) {
+                    badge.className = "px-2.5 py-0.5 rounded text-[10px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30";
+                    badge.innerText = "100% Operational";
+                }
+                if (summaryCard) summaryCard.className = "p-4 mx-5 mt-4 rounded-xl border flex items-start gap-3 bg-emerald-950/40 border-emerald-500/30 text-emerald-300";
+                if (summaryTitle) {
+                    summaryTitle.innerText = "All SCM Services Operational";
+                    summaryTitle.className = "font-bold text-emerald-200 text-sm";
+                }
+                if (summaryDesc) summaryDesc.innerText = healthData.description || "All monitored Palo Alto Networks cloud endpoints are healthy and reachable.";
+                if (summaryIcon) {
+                    summaryIcon.className = "w-5 h-5 shrink-0 mt-0.5 text-emerald-400";
+                    summaryIcon.setAttribute('data-lucide', 'check-circle');
+                }
+            } else if (healthData.overall === 'degraded') {
+                if (badge) {
+                    badge.className = "px-2.5 py-0.5 rounded text-[10px] font-mono bg-amber-500/20 text-amber-300 border border-amber-500/30";
+                    badge.innerText = "5G Microservice 503 (Snapshot Active)";
+                }
+                if (summaryCard) summaryCard.className = "p-4 mx-5 mt-4 rounded-xl border flex items-start gap-3 bg-amber-950/40 border-amber-500/40 text-amber-200";
+                if (summaryTitle) {
+                    summaryTitle.innerText = "SCM 5G Microservice Degraded (503 Service Unavailable)";
+                    summaryTitle.className = "font-bold text-amber-100 text-sm";
+                }
+                if (summaryDesc) summaryDesc.innerText = "Palo Alto SASE IAM and TSG tenancy are reachable (200 OK), but the 5G backend is returning 503 ('no healthy upstream'). Operating safely via Local Snapshot Resilience.";
+                if (summaryIcon) {
+                    summaryIcon.className = "w-5 h-5 shrink-0 mt-0.5 text-amber-400";
+                    summaryIcon.setAttribute('data-lucide', 'alert-triangle');
+                }
+            } else if (healthData.overall === 'standalone') {
+                if (badge) {
+                    badge.className = "px-2.5 py-0.5 rounded text-[10px] font-mono bg-purple-500/20 text-purple-300 border border-purple-500/30";
+                    badge.innerText = "Standalone Sandbox";
+                }
+                if (summaryCard) summaryCard.className = "p-4 mx-5 mt-4 rounded-xl border flex items-start gap-3 bg-purple-950/40 border-purple-500/30 text-purple-200";
+                if (summaryTitle) {
+                    summaryTitle.innerText = "100% Offline Standalone Demo Sandbox";
+                    summaryTitle.className = "font-bold text-purple-100 text-sm";
+                }
+                if (summaryDesc) summaryDesc.innerText = "Operating zero-latency local simulation without making external cloud requests.";
+                if (summaryIcon) {
+                    summaryIcon.className = "w-5 h-5 shrink-0 mt-0.5 text-purple-400";
+                    summaryIcon.setAttribute('data-lucide', 'package');
+                }
+            } else {
+                if (badge) {
+                    badge.className = "px-2.5 py-0.5 rounded text-[10px] font-mono bg-red-500/20 text-red-300 border border-red-500/30";
+                    badge.innerText = "Cloud Connection Error";
+                }
+                if (summaryCard) summaryCard.className = "p-4 mx-5 mt-4 rounded-xl border flex items-start gap-3 bg-red-950/40 border-red-500/30 text-red-200";
+                if (summaryTitle) {
+                    summaryTitle.innerText = "Authentication or Cloud Unreachable";
+                    summaryTitle.className = "font-bold text-red-100 text-sm";
+                }
+                if (summaryDesc) summaryDesc.innerText = healthData.description || "Unable to reach SCM or credentials are missing/invalid.";
+                if (summaryIcon) {
+                    summaryIcon.className = "w-5 h-5 shrink-0 mt-0.5 text-red-400";
+                    summaryIcon.setAttribute('data-lucide', 'x-circle');
+                }
+            }
+
+            if (!listContainer) return;
+
+            const services = healthData.services || [];
+            listContainer.innerHTML = services.map(s => {
+                let badgeClass = "bg-gray-800 text-gray-400 border-gray-700";
+                let dotClass = "bg-gray-500";
+                let sourceBadge = "bg-white/5 text-gray-300 border-white/10";
+                
+                if (s.state === 'operational') {
+                    badgeClass = "bg-emerald-500/10 text-emerald-300 border-emerald-500/30";
+                    dotClass = "bg-emerald-400";
+                    sourceBadge = "bg-emerald-500/10 text-emerald-300 border-emerald-500/30";
+                } else if (s.state === 'degraded') {
+                    badgeClass = "bg-amber-500/10 text-amber-300 border-amber-500/30";
+                    dotClass = "bg-amber-400";
+                    sourceBadge = "bg-amber-500/20 text-amber-300 border-amber-500/40";
+                } else if (s.state === 'sandbox') {
+                    badgeClass = "bg-purple-500/10 text-purple-300 border-purple-500/30";
+                    dotClass = "bg-purple-400";
+                    sourceBadge = "bg-purple-500/10 text-purple-300 border-purple-500/30";
+                } else if (s.state === 'error') {
+                    badgeClass = "bg-red-500/10 text-red-300 border-red-500/30";
+                    dotClass = "bg-red-400";
+                    sourceBadge = "bg-red-500/10 text-red-300 border-red-500/30";
+                }
+
+                return `
+                    <div class="p-3.5 rounded-xl glass-panel border border-white/10 hover:border-white/20 transition flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                        <div class="space-y-1 flex-1">
+                            <div class="flex items-center gap-2">
+                                <span class="w-2 h-2 rounded-full ${dotClass}"></span>
+                                <span class="text-xs font-bold text-white">${s.name}</span>
+                                <span class="px-2 py-0.5 rounded text-[10px] font-mono border ${badgeClass}">${s.status_text}</span>
+                                ${s.duration_ms > 0 ? `<span class="text-[10px] font-mono text-gray-400">${s.duration_ms}ms</span>` : ''}
+                            </div>
+                            <div class="text-[11px] text-gray-400 font-mono truncate max-w-xl" title="${s.endpoint}">
+                                <span class="text-cyan-400 font-bold">${s.method}</span> ${s.endpoint}
+                            </div>
+                            ${s.error ? `<div class="text-[10px] text-amber-300 font-mono mt-0.5">⚠️ ${escapeHtml(s.error)}</div>` : ''}
+                        </div>
+                        <div class="flex items-center gap-2 self-end sm:self-center shrink-0">
+                            <span class="px-2.5 py-1 rounded-lg text-[10px] font-semibold border ${sourceBadge}">
+                                Data Source: ${s.data_source}
+                            </span>
+                            <span class="text-[10px] text-gray-400 font-mono">Checked: ${s.last_checked}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            lucide.createIcons();
+        }
+
         // Fetch System Status & Version
         async function fetchStatus() {
             try {
                 const res = await fetch('/api/status');
                 const data = await res.json();
-                const pill = document.getElementById('status-pill');
-                const text = document.getElementById('status-text');
 
                 isStandaloneMode = Boolean(data.standalone_mode);
                 updateOperationalModeUI(isStandaloneMode);
+                updateOperationalStatusUI(data);
 
-                if (data.standalone_mode) {
-                    pill.className = "flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-xs font-medium cursor-pointer hover:bg-cyan-500/20 transition shadow-sm";
-                    text.innerText = "⚡ Standalone Demo";
-                    pill.title = "Operating in 100% Offline Standalone Demo Sandbox (Zero-Latency Simulation)";
-                    pill.onclick = () => switchTab('tab-settings');
-                } else if (data.authenticated) {
-                    pill.className = "flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-medium cursor-pointer hover:bg-emerald-500/20 transition shadow-sm";
-                    text.innerText = "SCM Online";
-                    pill.title = "Connected to Strata Cloud Manager (Active Token: " + (data.token_preview || "Live") + ")";
-                    pill.onclick = () => switchTab('tab-settings');
-                } else {
-                    pill.className = "flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-medium cursor-pointer hover:bg-amber-500/20 transition shadow-sm";
-                    text.innerText = "Configure SCM";
-                    pill.onclick = () => switchTab('tab-settings');
-                }
                 if (data.default_apn) {
                     document.getElementById('default-apn-badge').innerText = data.default_apn;
                 }
@@ -6951,31 +7239,49 @@
         }
 
         function updateAllRelativeTimestamps() {
+            const elLabel = document.getElementById('last-sync-label');
+            const elTime = document.getElementById('last-sync-time');
+            const elRel = document.getElementById('last-sync-relative');
+            const elBeaconPing = document.getElementById('sync-beacon-ping');
+            const elBeaconDot = document.getElementById('sync-beacon-dot');
+
             if (lastSyncTimestamp) {
-                const elTime = document.getElementById('last-sync-time');
-                const elRel = document.getElementById('last-sync-relative');
-                const elBeaconPing = document.getElementById('sync-beacon-ping');
-                const elBeaconDot = document.getElementById('sync-beacon-dot');
-                
                 if (elTime) elTime.innerText = formatClockTime(lastSyncTimestamp);
                 if (elRel) elRel.innerText = getRelativeTimeStr(lastSyncTimestamp);
 
                 const seconds = Math.floor((new Date() - lastSyncTimestamp) / 1000);
-                if (elBeaconDot && elBeaconPing) {
-                    if (seconds < 60) {
-                        // Fresh green
-                        elBeaconDot.className = 'relative inline-flex rounded-full h-2 w-2 bg-emerald-500';
-                        elBeaconPing.className = 'animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75';
+
+                if (currentHealthData && currentHealthData.overall === 'standalone') {
+                    if (elLabel) elLabel.innerText = 'Sandbox:';
+                    if (elRel) elRel.innerText = '(Offline)';
+                    if (elBeaconDot) elBeaconDot.className = 'relative inline-flex rounded-full h-2 w-2 bg-purple-500';
+                    if (elBeaconPing) elBeaconPing.style.display = 'none';
+                } else if (currentHealthData && currentHealthData.overall === 'degraded') {
+                    if (elLabel) elLabel.innerText = 'Snapshot:';
+                    if (elRel) elRel.innerText = '(SCM 5G 503)';
+                    if (elBeaconDot) elBeaconDot.className = 'relative inline-flex rounded-full h-2 w-2 bg-amber-500';
+                    if (elBeaconPing) {
+                        elBeaconPing.className = 'animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-60';
                         elBeaconPing.style.display = 'inline-flex';
-                    } else if (seconds < 180) {
-                        // Aging amber
-                        elBeaconDot.className = 'relative inline-flex rounded-full h-2 w-2 bg-amber-500';
-                        elBeaconPing.className = 'animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-50';
-                        elBeaconPing.style.display = 'inline-flex';
-                    } else {
-                        // Stale muted
-                        elBeaconDot.className = 'relative inline-flex rounded-full h-2 w-2 bg-gray-500';
-                        elBeaconPing.style.display = 'none';
+                    }
+                } else {
+                    if (elLabel) elLabel.innerText = 'Synced:';
+                    if (elBeaconDot && elBeaconPing) {
+                        if (seconds < 60) {
+                            // Fresh green
+                            elBeaconDot.className = 'relative inline-flex rounded-full h-2 w-2 bg-emerald-500';
+                            elBeaconPing.className = 'animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75';
+                            elBeaconPing.style.display = 'inline-flex';
+                        } else if (seconds < 180) {
+                            // Aging amber
+                            elBeaconDot.className = 'relative inline-flex rounded-full h-2 w-2 bg-amber-500';
+                            elBeaconPing.className = 'animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-50';
+                            elBeaconPing.style.display = 'inline-flex';
+                        } else {
+                            // Stale muted
+                            elBeaconDot.className = 'relative inline-flex rounded-full h-2 w-2 bg-gray-500';
+                            elBeaconPing.style.display = 'none';
+                        }
                     }
                 }
             }
