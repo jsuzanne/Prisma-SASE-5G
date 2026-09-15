@@ -369,6 +369,28 @@ class TestAppEndpoints(unittest.TestCase):
         self.assertTrue(data["success"])
         self.assertTrue(any(tx["method"] == "PUT" for tx in data["logs"]))
 
+    def test_debug_config_get_and_set(self):
+        # 1. GET current config
+        res_get = client.get("/api/debug/config")
+        self.assertEqual(res_get.status_code, 200)
+        data_get = res_get.json()
+        self.assertTrue(data_get["success"])
+        self.assertIn("buffer_size", data_get)
+
+        # 2. POST update config
+        res_post = client.post("/api/debug/config", json={"buffer_size": 300})
+        self.assertEqual(res_post.status_code, 200)
+        data_post = res_post.json()
+        self.assertTrue(data_post["success"])
+        self.assertEqual(data_post["buffer_size"], 300)
+
+        # Verify get reflects change
+        res_get2 = client.get("/api/debug/config")
+        self.assertEqual(res_get2.json()["buffer_size"], 300)
+
+        # Restore default 150
+        client.post("/api/debug/config", json={"buffer_size": 150})
+
 
 if __name__ == "__main__":
     unittest.main()

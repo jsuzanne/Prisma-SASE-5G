@@ -87,6 +87,17 @@ class TestAPIDebugLogger(unittest.TestCase):
         self.assertEqual(len(search_logs), 1)
         self.assertEqual(search_logs[0]["request_body"]["imsi"], "208950999999999")
 
+    def test_set_capacity(self):
+        logger = APIDebugLogger(max_capacity=10)
+        self.assertEqual(logger.max_capacity, 10)
+        logger.set_capacity(50)
+        self.assertEqual(logger.max_capacity, 50)
+        # Clamped min/max
+        logger.set_capacity(5)
+        self.assertEqual(logger.max_capacity, 10)  # min 10
+        logger.set_capacity(5000)
+        self.assertEqual(logger.max_capacity, 1000)  # max 1000
+
 
 class TestDebugLogEndpoints(unittest.TestCase):
     """Test FastAPI /api/debug/logs endpoints."""

@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request, BackgroundTasks, Response
+from fastapi import FastAPI, HTTPException, Request, BackgroundTasks, Response, Body
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -1951,12 +1951,38 @@ def get_debug_logs(
     }
 
 
+@app.get("/api/debug/config")
+def get_debug_config():
+    """Retrieve current debug logger buffer capacity and count."""
+    return {
+        "success": True,
+        "buffer_size": api_debug_logger.max_capacity,
+        "count": api_debug_logger.count(),
+    }
+
+
+@app.post("/api/debug/config")
+def update_debug_config(payload: Dict[str, Any] = Body(...)):
+    """Update debug logger ring buffer capacity dynamically."""
+    try:
+        new_size = int(payload.get("buffer_size", api_debug_logger.max_capacity))
+        updated_capacity = api_debug_logger.set_capacity(new_size)
+        return {
+            "success": True,
+            "message": f"Debug buffer capacity updated to {updated_capacity} calls",
+            "buffer_size": updated_capacity,
+            "count": api_debug_logger.count(),
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid buffer size: {str(exc)}")
+
+
 @app.get("/api/debug/logs/export")
 def export_debug_logs():
     """Export all debug logs as downloadable JSON."""
-    logs = api_debug_logger.get_logs(limit=150)
+    logs = api_debug_logger.get_logs(limit=api_debug_logger.max_capacity)
     return JSONResponse(
-        content={"exported_at": time.time(), "total": len(logs), "transactions": logs},
+        content={"exported_at": time.time(), "total": len(logs), "buffer_size": api_debug_logger.max_capacity, "transactions": logs},
         headers={"Content-Disposition": f"attachment; filename=prisma_5g_api_logs_{int(time.time())}.json"}
     )
 

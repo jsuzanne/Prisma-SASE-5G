@@ -3793,6 +3793,20 @@
                 </div>
                 
                 <div class="flex items-center gap-2">
+                    <!-- Buffer capacity selector -->
+                    <div class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs text-gray-300" title="Configurable in-memory transaction buffer size">
+                        <i data-lucide="database" class="w-3.5 h-3.5 text-cyan-400 shrink-0"></i>
+                        <span class="text-[11px] text-gray-400 hidden lg:inline">Buffer:</span>
+                        <select id="debugger-buffer-size" onchange="changeDebuggerBufferSize(this.value)" class="bg-transparent text-[11px] text-cyan-300 font-mono focus:outline-none cursor-pointer">
+                            <option value="50" class="bg-gray-900 text-white">50</option>
+                            <option value="100" class="bg-gray-900 text-white">100</option>
+                            <option value="150" selected class="bg-gray-900 text-white">150</option>
+                            <option value="300" class="bg-gray-900 text-white">300</option>
+                            <option value="500" class="bg-gray-900 text-white">500</option>
+                            <option value="1000" class="bg-gray-900 text-white">1000</option>
+                        </select>
+                    </div>
+
                     <!-- Live stream toggle -->
                     <label class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs text-gray-300 cursor-pointer hover:bg-white/10 transition">
                         <input type="checkbox" id="debugger-auto-refresh" checked onchange="toggleDebuggerAutoRefresh()" class="rounded border-gray-700 text-cyan-500 focus:ring-0">
@@ -3800,7 +3814,7 @@
                     </label>
 
                     <!-- Export button -->
-                    <button onclick="exportDebuggerLogs()" class="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 text-xs flex items-center gap-1.5 transition" title="Export transactions as JSON">
+                    <button onclick="exportDebuggerLogs()" class="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 text-xs flex items-center gap-1.5 transition cursor-pointer" title="Export transactions as JSON">
                         <i data-lucide="download" class="w-3.5 h-3.5 text-cyan-400"></i> <span class="hidden sm:inline">Export</span>
                     </button>
 
@@ -7380,6 +7394,43 @@
         let debuggerSearchQuery = '';
         let debuggerInterval = null;
         let isDebuggerModalOpen = false;
+        let currentDebuggerBufferSize = parseInt(localStorage.getItem('prisma_5g_debugger_buffer') || '150', 10);
+
+        async function syncDebuggerBufferConfig() {
+            try {
+                const res = await fetch('/api/debug/config');
+                const data = await res.json();
+                if (data.success && data.buffer_size) {
+                    currentDebuggerBufferSize = data.buffer_size;
+                    const select = document.getElementById('debugger-buffer-size');
+                    if (select) select.value = String(currentDebuggerBufferSize);
+                }
+            } catch (e) {
+                console.warn("Could not sync debug config", e);
+            }
+        }
+
+        async function changeDebuggerBufferSize(newSize) {
+            const sizeInt = parseInt(newSize, 10);
+            if (isNaN(sizeInt)) return;
+            currentDebuggerBufferSize = sizeInt;
+            localStorage.setItem('prisma_5g_debugger_buffer', String(sizeInt));
+            
+            try {
+                const res = await fetch('/api/debug/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ buffer_size: sizeInt })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast("Buffer Configured", `API inspection buffer set to ${sizeInt} calls`);
+                    fetchDebuggerLogs();
+                }
+            } catch (err) {
+                console.error("Failed to update debug buffer config", err);
+            }
+        }
 
         function openApiDebuggerModal() {
             isDebuggerModalOpen = true;
@@ -7387,6 +7438,7 @@
             if (modal) {
                 modal.classList.remove('hidden');
             }
+            syncDebuggerBufferConfig();
             fetchDebuggerLogs();
             startDebuggerPolling();
             lucide.createIcons();
@@ -7429,7 +7481,8 @@
 
         async function fetchDebuggerLogs() {
             try {
-                const res = await fetch('/api/debug/logs?limit=100');
+                const limit = currentDebuggerBufferSize || 150;
+                const res = await fetch(`/api/debug/logs?limit=${limit}`);
                 const data = await res.json();
                 if (data.success && Array.isArray(data.logs)) {
                     debuggerLogs = data.logs;

@@ -215,6 +215,14 @@ class APIDebugLogger:
                     return tx.to_dict()
         return None
 
+    def set_capacity(self, new_capacity: int) -> int:
+        """Dynamically resize the ring buffer preserving recent items."""
+        new_capacity = max(10, min(1000, int(new_capacity)))
+        with self._lock:
+            self.max_capacity = new_capacity
+            self._buffer = deque(self._buffer, maxlen=new_capacity)
+        return self.max_capacity
+
     def clear(self) -> int:
         """Clear all stored transactions."""
         with self._lock:
@@ -228,5 +236,13 @@ class APIDebugLogger:
             return len(self._buffer)
 
 
+def _get_default_buffer_capacity() -> int:
+    """Read default buffer capacity from environment if provided."""
+    try:
+        return max(10, min(1000, int(os.environ.get("API_DEBUG_BUFFER_SIZE", "150"))))
+    except Exception:
+        return 150
+
+
 # Global singleton instance
-api_debug_logger = APIDebugLogger(max_capacity=150)
+api_debug_logger = APIDebugLogger(max_capacity=_get_default_buffer_capacity())
