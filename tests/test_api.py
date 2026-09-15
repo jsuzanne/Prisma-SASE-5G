@@ -352,6 +352,24 @@ class TestAppEndpoints(unittest.TestCase):
         self.assertIn("services", data)
 
 
+    def test_debug_logs_put_filter(self):
+        from app import api_debug_logger
+        api_debug_logger.record(
+            method="PUT",
+            url="https://api.sase.paloaltonetworks.com/mt/manage/5g/tenantUEInfo/test-ue-123",
+            path="/mt/manage/5g/tenantUEInfo/test-ue-123",
+            request_body={"imsi": "901370007299136", "apn": "sasetest"},
+            response_status=200,
+            response_body={"success": True},
+            duration_ms=120.5
+        )
+        response = client.get("/api/debug/logs?method=PUT")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["success"])
+        self.assertTrue(any(tx["method"] == "PUT" for tx in data["logs"]))
+
+
 if __name__ == "__main__":
     unittest.main()
 
