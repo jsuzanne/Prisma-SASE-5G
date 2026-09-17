@@ -21,11 +21,9 @@ venv/
 .vscode/
 .idea/
 
-# Confidential / Internal Demos, Specs & PRDs
+# Confidential / Internal Demos, Specs
 verticals use cases/
 *vertical*use*case*
-PRD/
-*PRD*
 *.pdf
 *.pptx
 *.key
