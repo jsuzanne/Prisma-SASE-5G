@@ -9,55 +9,55 @@
 
 ## 1. Executive Summary & Vision
 
-### 1.1 Contexte & Problématique
-Le déploiement massif de flottes cellulaires 5G/LTE pour l'IoT et l'OT industriel (AGV, caméras 4K nomades, capteurs SCADA, routeurs 5G véhiculaires) se heurte à un verrou opérationnel et sécuritaire majeur :
-1. **Absence d'agent logiciel :** Les systèmes embarqués et automates industriels ne peuvent pas exécuter d'agents Endpoint (ex: GlobalProtect, EDR).
-2. **Visibilité cloisonnée (Silos NetOps vs SecOps) :** Les équipes réseau gèrent les cartes SIM chez l'opérateur (Transatel), tandis que les équipes de sécurité gèrent les politiques d'accès (Palo Alto Prisma SASE) sans corrélation temps réel.
-3. **Risques cyber accrus :** En cas d'infection ou d'usurpation de SIM, le SOC est incapable d'isoler physiquement le terminal au niveau radio.
+### 1.1 Context & Problem Statement
+The massive rollout of cellular 5G/LTE fleets for IoT and industrial OT environments (autonomous mobile robots / AGVs, nomadic 4K surveillance cameras, SCADA telemetry probes, connected vehicular routers) faces major operational and security roadblocks:
+1. **Agentless Architecture:** Embedded systems and industrial PLCs/RTUs cannot host conventional Endpoint software agents (e.g., GlobalProtect, EDR).
+2. **Siloed Visibility (NetOps vs. SecOps):** Network teams manage SIM cards and data plans within carrier portals (Transatel NTT), whereas security teams enforce corporate access policies within Prisma SASE without real-time synchronization.
+3. **Cybersecurity Exposure & Incident Response:** In the event of malware infection, botnet enlistment (e.g., Mirai), or SIM hijacking, SOC teams lack the capability to physically isolate or disconnect the endpoint at the cellular radio level.
 
-### 1.2 Solution & Vision Produit
-Construire un **connecteur d'intégration bidirectionnel en temps réel** entre les **APIs Transatel NTT** et **Palo Alto Networks Prisma SASE (Strata Cloud Manager)**.
+### 1.2 Solution & Product Vision
+Build a **real-time bidirectional integration connector** bridging the **Transatel NTT APIs** and **Palo Alto Networks Prisma SASE (Strata Cloud Manager)**.
 
-* **Zero-Touch Provisioning :** Dès qu'un modem 5G s'allume avec une SIM Transatel, la session de données est automatiquement enregistrée et enrichie dans Prisma SASE avec l'application immédiate de la politique Zero Trust associée.
-* **Full-Stack Security Remediation :** Si Prisma SASE détecte une menace critique (C2, malware, exfiltration), l'administrateur ou le SOAR peut isoler le trafic applicatif ET suspendre la SIM au niveau opérateur (Barring) en 1 clic.
+* **Agentless Zero-Touch Provisioning:** As soon as a 5G cellular modem boots with an active Transatel SIM, the data session is automatically registered and enriched in Prisma SASE, immediately activating the associated 5G Zero Trust security policy.
+* **Full-Stack Security Remediation:** When Prisma SASE detects critical threats (C2 beaconing, malware, abnormal exfiltration), the SOC administrator or SOAR playbook can instantly quarantine the endpoint at the SASE layer AND trigger a cellular radio suspension (SIM Barring) at the carrier level in a single click.
 
 ---
 
-## 2. Architecture Globale & Flux de Données
+## 2. Architecture & Data Flow
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant UE as 📱 Terminal 5G / IoT (SIM)
+    participant UE as 📱 5G IoT / OT Device (SIM)
     participant T_Core as 📡 Transatel 5G Core / HSS / SMF
     participant T_API as 🌐 Transatel APIs & Webhooks
-    participant Bridge as ⚡ Prisma-SASE-5G Engine (App)
+    participant Bridge as ⚡ Prisma-SASE-5G Integration Engine
     participant SCM as ☁️ Palo Alto Prisma SASE (SCM)
 
     %% Flow 1: Device Boot & Session Registration
     rect rgb(230, 245, 255)
-    Note over UE,SCM: Étape 1 : Zero-Touch Registration & Context Enrichment
-    UE->>T_Core: Connexion Radio (Attach 5G-NR)
-    T_Core->>T_API: Événement Session Created (IP: 10.45.1.22, IMSI, Cell-ID)
+    Note over UE,SCM: Step 1: Zero-Touch Registration & Context Enrichment
+    UE->>T_Core: Cellular Attach (5G-NR / LTE)
+    T_Core->>T_API: Event: Session Created (IP: 10.45.1.22, IMSI, Cell-ID)
     T_API->>Bridge: Webhook Event: DataSessionCreated
     Bridge->>SCM: POST /api/v1/sase/ue/session/registration (IP, IMSI, IMEI, CellID, Group)
-    SCM-->>Bridge: 200 OK (Politique Zero Trust active)
+    SCM-->>Bridge: 200 OK (Zero Trust Policy Active)
     end
 
     %% Flow 2: Threat Detection & Remediation
     rect rgb(255, 235, 235)
-    Note over UE,SCM: Étape 2 : Détection d'Attaque & Double Remédiation
-    UE->>SCM: Trafic malveillant / C2 détecté
-    SCM->>Bridge: Alerte de Sécurité / Changement de posture
-    Bridge->>SCM: PUT /tenantUEInfo (Bascule vers 'Isolation-Group')
-    Bridge->>T_API: POST /connectivity/sims/{imsi}/barring (Suspension Radio)
-    T_API->>T_Core: Coupure session & Barring réseau
+    Note over UE,SCM: Step 2: Threat Detection & Dual Remediation
+    UE->>SCM: Malicious Traffic / C2 Activity Detected
+    SCM->>Bridge: Security Alert / Posture Change
+    Bridge->>SCM: PUT /tenantUEInfo (Shift to 'Isolation-Group')
+    Bridge->>T_API: POST /connectivity/sims/{imsi}/barring (Carrier Radio Barring)
+    T_API->>T_Core: Terminate Session & Bar Radio Access
     end
 
     %% Flow 3: Device Shutdown
     rect rgb(240, 240, 240)
-    Note over UE,SCM: Étape 3 : Déconnexion Propre
-    UE->>T_Core: Detach / Extinction
+    Note over UE,SCM: Step 3: Clean Disconnect / Deregistration
+    UE->>T_Core: Radio Detach / Power Down
     T_API->>Bridge: Webhook Event: DataSessionTerminated
     Bridge->>SCM: POST /api/v1/sase/ue/session/deregistration (IP, IMSI)
     end
@@ -65,18 +65,18 @@ sequenceDiagram
 
 ---
 
-## 3. Spécifications Détaillées des Appels API
+## 3. Detailed API Specifications
 
-### 3.1 APIs Transatel NTT (Consommateur : Notre Application)
+### 3.1 Transatel NTT APIs (Inbound / Consumed by Integration Engine)
 
-#### A. Authentification OAuth 2.0
-* **Endpoint :** `POST https://api.transatel.com/authentication/api/v1/oauth/token`
-* **Headers :** `Content-Type: application/x-www-form-urlencoded`
-* **Request Body :**
+#### A. OAuth 2.0 Authentication
+* **Endpoint:** `POST https://api.transatel.com/authentication/api/v1/oauth/token`
+* **Headers:** `Content-Type: application/x-www-form-urlencoded`
+* **Request Body:**
   ```
   grant_type=client_credentials&client_id={{TRANSATEL_CLIENT_ID}}&client_secret={{TRANSATEL_CLIENT_SECRET}}
   ```
-* **Response (200 OK) :**
+* **Response (200 OK):**
   ```json
   {
     "access_token": "eyJhbGciOiJSUzI1NiIsIn...",
@@ -87,11 +87,11 @@ sequenceDiagram
 
 ---
 
-#### B. Récupération des Sessions de Données Actives (Data Session API)
-* **Endpoint :** `GET https://api.transatel.com/network/v1/data-sessions`
-* **Query Params :** `limit=100`, `status=ACTIVE`
-* **Headers :** `Authorization: Bearer {{token}}`
-* **Response (200 OK) :**
+#### B. Active Data Sessions Retrieval (Data Session API)
+* **Endpoint:** `GET https://api.transatel.com/network/v1/data-sessions`
+* **Query Params:** `limit=100`, `status=ACTIVE`
+* **Headers:** `Authorization: Bearer {{token}}`
+* **Response (200 OK):**
   ```json
   {
     "total": 42,
@@ -114,10 +114,10 @@ sequenceDiagram
 
 ---
 
-#### C. Réception des Événements Réseau (Webhooks Transatel)
-* **Webhook Inbound Endpoint (FastAPI) :** `POST /api/v1/transatel/webhook`
-* **Headers :** `X-TSL-Signature: sha256=...`
-* **Payload reçu (Exemple : Connexion Terminal) :**
+#### C. Network Event Notification (Transatel Webhooks)
+* **Webhook Receiver (FastAPI):** `POST /api/v1/transatel/webhook`
+* **Headers:** `X-TSL-Signature: sha256=...`
+* **Payload Sample (Device Connected Event):**
   ```json
   {
     "eventType": "DATA_SESSION_CREATED",
@@ -135,10 +135,10 @@ sequenceDiagram
 
 ---
 
-#### D. Inventaire SIM & État du Parc (SIM Management API)
-* **Endpoint :** `GET https://api.transatel.com/connectivity/v1/sims`
-* **Query Params :** `status=ACTIVE`, `page=1`, `size=50`
-* **Response (200 OK) :**
+#### D. SIM Inventory & Lifecycle Management (SIM Management API)
+* **Endpoint:** `GET https://api.transatel.com/connectivity/v1/sims`
+* **Query Params:** `status=ACTIVE`, `page=1`, `size=50`
+* **Response (200 OK):**
   ```json
   {
     "data": [
@@ -156,10 +156,10 @@ sequenceDiagram
 
 ---
 
-#### E. Suspension / Barring Opérateur (Remédiation d'Urgence)
-* **Endpoint :** `POST https://api.transatel.com/connectivity/v1/sims/{imsi}/barring`
-* **Headers :** `Authorization: Bearer {{token}}`, `Content-Type: application/json`
-* **Request Body :**
+#### E. Carrier-Level Emergency Barring (Remediation API)
+* **Endpoint:** `POST https://api.transatel.com/connectivity/v1/sims/{imsi}/barring`
+* **Headers:** `Authorization: Bearer {{token}}`, `Content-Type: application/json`
+* **Request Body:**
   ```json
   {
     "service": "DATA",
@@ -167,7 +167,7 @@ sequenceDiagram
     "reason": "SECURITY_QUARANTINE_PRISMA_SASE"
   }
   ```
-* **Response (202 Accepted) :**
+* **Response (202 Accepted):**
   ```json
   {
     "requestId": "TSL-REQ-987654321",
@@ -177,12 +177,12 @@ sequenceDiagram
 
 ---
 
-### 3.2 APIs Palo Alto Networks Prisma SASE (Strata Cloud Manager)
+### 3.2 Palo Alto Networks Prisma SASE APIs (Strata Cloud Manager)
 
-#### A. Inscription de Session UE (Session Registration)
-* **Endpoint :** `POST {{SCM_BASE_URL}}/api/v1/sase/ue/session/registration`
-* **Headers :** `Authorization: Bearer {{PANW_TOKEN}}`
-* **Request Body :**
+#### A. UE Session Registration
+* **Endpoint:** `POST {{SCM_BASE_URL}}/api/v1/sase/ue/session/registration`
+* **Headers:** `Authorization: Bearer {{PANW_TOKEN}}`
+* **Request Body:**
   ```json
   {
     "imsi": "208010000000001",
@@ -198,10 +198,10 @@ sequenceDiagram
 
 ---
 
-#### B. Désenregistrement de Session UE (Session Deregistration)
-* **Endpoint :** `POST {{SCM_BASE_URL}}/api/v1/sase/ue/session/deregistration`
-* **Headers :** `Authorization: Bearer {{PANW_TOKEN}}`
-* **Request Body :**
+#### B. UE Session Deregistration
+* **Endpoint:** `POST {{SCM_BASE_URL}}/api/v1/sase/ue/session/deregistration`
+* **Headers:** `Authorization: Bearer {{PANW_TOKEN}}`
+* **Request Body:**
   ```json
   {
     "imsi": "208010000000001",
@@ -211,9 +211,9 @@ sequenceDiagram
 
 ---
 
-#### C. Création / Mise à jour de Mapping UE (Tenant UE Info)
-* **Endpoint :** `POST {{SCM_BASE_URL}}/api/v1/sase/tenantUEInfo/create`
-* **Request Body :**
+#### C. Tenant UE Mapping Provisioning (Tenant UE Info)
+* **Endpoint:** `POST {{SCM_BASE_URL}}/api/v1/sase/tenantUEInfo/create`
+* **Request Body:**
   ```json
   {
     "imsi": "208010000000001",
@@ -227,40 +227,40 @@ sequenceDiagram
 
 ---
 
-## 4. Fonctionnalités & User Stories à Développer
+## 4. User Stories & Functional Requirements
 
-### Feature 1 : Module Connecteur Transatel (`src/transatel_client.py`)
-* **US-1.1 :** En tant que système, je dois m'authentifier auprès de Transatel via OAuth 2.0 et rafraîchir le token automatiquement avant expiration.
-* **US-1.2 :** En tant qu'administrateur, je peux tester la connectivité avec l'API Transatel depuis les Settings de l'UI.
-* **US-1.3 :** En tant que développeur, un mode Sandbox/Mock Transatel doit être disponible si les identifiants ne sont pas renseignés.
+### Feature 1: Transatel API Client Module (`src/transatel_client.py`)
+* **US-1.1:** As a system, I must authenticate against Transatel OAuth 2.0 and automatically renew the access token prior to expiration.
+* **US-1.2:** As an administrator, I can test connectivity with the Transatel API directly from the web settings interface.
+* **US-1.3:** As a developer, a realistic Sandbox / Mock simulation mode must operate if credentials are not configured.
 
-### Feature 2 : Réception Webhook & Auto-Registration Zero-Touch
-* **US-2.1 :** En tant que système, je reçois les événements `DATA_SESSION_CREATED` sur `/api/v1/transatel/webhook` et j'appelle immédiatement `client.register_session()` dans Prisma SASE.
-* **US-2.2 :** En tant que système, je reçois `DATA_SESSION_TERMINATED` et j'appelle `client.deregister_session()`.
+### Feature 2: Inbound Webhook & Zero-Touch Auto-Registration
+* **US-2.1:** As a system, when receiving `DATA_SESSION_CREATED` on `/api/v1/transatel/webhook`, immediately trigger `client.register_session()` in Prisma SASE.
+* **US-2.2:** As a system, when receiving `DATA_SESSION_TERMINATED`, immediately invoke `client.deregister_session()`.
 
-### Feature 3 : Import & Synchronisation d'Inventaire SIM
-* **US-3.1 :** En tant qu'administrateur, je dispose d'un bouton *"Sync Transatel Fleet"* dans l'UI pour importer toutes les SIMs actives en tant que `Tenant UE Mappings`.
-* **US-3.2 :** Les métadonnées opérateur (ICCID, Type de forfait, Date d'activation) sont affichées dans la fiche de chaque terminal.
+### Feature 3: SIM Inventory Auto-Discovery & Fleet Sync
+* **US-3.1:** As an administrator, provide a *"Sync Transatel Fleet"* action in the UI to discover and import active SIMs into `Tenant UE Mappings`.
+* **US-3.2:** Display carrier telemetry attributes (ICCID, rate plan, SIM status) alongside device security postures.
 
-### Feature 4 : Double Remédiation de Sécurité (Full-Stack Isolation)
-* **US-4.1 :** Dans la table des sessions et des terminaux, un bouton d'action *"Emergency Radio Barring"* permet de suspendre la data de la SIM chez Transatel.
-* **US-4.2 :** En cas de bascule d'un terminal vers le groupe `Quarantine` ou `Isolation`, proposer une case à cocher pour suspendre la SIM côté opérateur en même temps.
+### Feature 4: Full-Stack Security Remediation (SASE + Radio Barring)
+* **US-4.1:** In the UI sessions table, provide an *"Emergency Radio Barring"* action to suspend cellular data access at the carrier level.
+* **US-4.2:** When shifting an infected terminal to the `Quarantine` or `Isolation` group, provide an option to simultaneously trigger carrier-level radio barring.
 
 ---
 
-## 5. Plan de Développement & Jalons (Milestones)
+## 5. Implementation Roadmap & Milestones
 
-| Jalon | Périmètre | Livrables |
+| Milestone | Scope | Deliverables |
 | :--- | :--- | :--- |
-| **Milestone 1** | Client API Transatel & Mocks | `src/transatel_client.py`, tests unitaires `test_transatel_client.py`, mode simulation. |
-| **Milestone 2** | Endpoint Webhook & Auto-Enrichment | Route FastAPI `/api/v1/transatel/webhook`, pipeline temps réel vers `src/client.py`. |
-| **Milestone 3** | Interface Web & Synchronisation SIM | Bouton d'import dans l'UI (`index.html`), badges Transatel 5G, logs d'événements opérateur. |
-| **Milestone 4** | Action de Barring & Tests E2E | Intégration du Barring d'urgence, tests de bout en bout et documentation de démo SIDO. |
+| **Milestone 1** | Transatel API Client & Sandbox Mock | `src/transatel_client.py`, unit test suite `test_transatel_client.py`, simulation engine. |
+| **Milestone 2** | Webhook Ingestion & Real-Time Sync | FastAPI endpoint `/api/v1/transatel/webhook`, live pipeline into `src/client.py`. |
+| **Milestone 3** | UI Integration & SIM Fleet Sync | Dashboard synchronization button (`index.html`), Transatel 5G badges, carrier logs table. |
+| **Milestone 4** | Threat Remediation & E2E Validation | Emergency barring workflow, automated integration tests, and SIDO demonstration playbook. |
 
 ---
 
-## 6. Sécurité & Résilience
+## 6. Security, Resilience & Best Practices
 
-1. **Gestion des Secrets :** Stockage sécurisé de `TRANSATEL_CLIENT_ID` et `TRANSATEL_CLIENT_SECRET` dans `.env` et masquage dans l'interface et les logs API.
-2. **Signature Webhook :** Validation obligatoire de la signature `X-TSL-Signature` (HMAC SHA-256) pour éviter l'injection de fausses sessions.
-3. **Gestion des Pannes :** En cas d'indisponibilité de l'API Transatel, mécanisme de retry exponentiel et fallback sur cache local des sessions.
+1. **Secret Management:** Securely persist `TRANSATEL_CLIENT_ID` and `TRANSATEL_CLIENT_SECRET` via environment variables (`.env`) and redact all secrets in debug loggers.
+2. **Webhook Cryptographic Validation:** Verify inbound webhook signatures (`X-TSL-Signature` HMAC SHA-256) to prevent malicious session injections.
+3. **Fault Tolerance & Retries:** Implement exponential backoff on transient network failures and maintain a local session state cache in case of upstream carrier API timeouts.
