@@ -2176,63 +2176,33 @@ def get_throughput_metrics(
         active_sess = load_active_sessions()
         active_count = len(active_sess)
 
+        # Generate timestamps for time_range
         if time_range == "1h":
-            # 7 points spaced by 10 minutes rolling up to current minute
             times = [(now - timedelta(minutes=60 - 10 * i)).strftime("%H:%M") for i in range(7)]
-            base_points = [
-                {"time": times[0], "in": 1.5, "eg": 3.4, "sess_ratio": 0.2},
-                {"time": times[1], "in": 3.8, "eg": 12.8, "sess_ratio": 0.4},
-                {"time": times[2], "in": 8.2, "eg": 34.0, "sess_ratio": 0.6},
-                {"time": times[3], "in": 14.5, "eg": 66.2, "sess_ratio": 0.9},
-                {"time": times[4], "in": 9.0, "eg": 38.5, "sess_ratio": 0.6},
-                {"time": times[5], "in": 4.2, "eg": 18.0, "sess_ratio": 0.4},
-                {"time": times[6], "in": 2.5, "eg": 12.2, "sess_ratio": 0.3},
-            ]
         elif time_range == "24h":
-            # 9 points spanning the last 24 hours rolling up to current local time
             times = [(now - timedelta(hours=24 - 3 * i)).strftime("%H:%M") for i in range(8)]
             times.append(now.strftime("%b %d"))
-            base_points = [
-                {"time": times[0], "in": 0.0, "eg": 0.0, "sess_ratio": 0.0},
-                {"time": times[1], "in": 0.0, "eg": 0.0, "sess_ratio": 0.0},
-                {"time": times[2], "in": 0.0, "eg": 0.0, "sess_ratio": 0.0},
-                {"time": times[3], "in": 0.8, "eg": 2.4, "sess_ratio": 0.2},
-                {"time": times[4], "in": 4.5, "eg": 18.0, "sess_ratio": 0.5},
-                {"time": times[5], "in": 16.8, "eg": 84.5, "sess_ratio": 1.0},
-                {"time": times[6], "in": 7.2, "eg": 32.0, "sess_ratio": 0.6},
-                {"time": times[7], "in": 3.6, "eg": 14.5, "sess_ratio": 0.4},
-                {"time": times[8], "in": 2.5, "eg": 16.0, "sess_ratio": 0.3},
-            ]
-        else:  # default "7d" (Past 7 days matching Strata Cloud Manager)
-            # 8 daily points from 7 days ago to today formatted as MM/DD (e.g. 09/05, 09/06, ..., 09/12)
-            dates = [(now - timedelta(days=7 - i)).strftime("%m/%d") for i in range(8)]
-            base_points = [
-                {"time": dates[0], "in": 0.0, "eg": 0.0, "sess_ratio": 0.0},
-                {"time": dates[1], "in": 0.0, "eg": 0.0, "sess_ratio": 0.0},
-                {"time": dates[2], "in": 0.0, "eg": 0.0, "sess_ratio": 0.0},
-                {"time": dates[3], "in": 0.0, "eg": 0.0, "sess_ratio": 0.0},
-                {"time": dates[4], "in": 2.8, "eg": 10.2, "sess_ratio": 0.3},
-                {"time": dates[5], "in": 18.5, "eg": 112.5, "sess_ratio": 1.0},  # SCM Peak
-                {"time": dates[6], "in": 8.2, "eg": 52.0, "sess_ratio": 0.6},
-                {"time": dates[7], "in": 2.5, "eg": 16.0, "sess_ratio": 0.4},
-            ]
+        else:  # "7d"
+            times = [(now - timedelta(days=7 - i)).strftime("%m/%d") for i in range(8)]
 
         points = []
-        for p in base_points:
-            # Active session bonus on latest traffic points
-            if active_count > 0:
-                bonus_in = round(active_count * 1.5 * p["sess_ratio"], 1)
-                bonus_eg = round(active_count * 5.0 * p["sess_ratio"], 1)
-                in_val = round(p["in"] + bonus_in, 1)
-                eg_val = round(p["eg"] + bonus_eg, 1)
-                pt_sess = max(1, int(round(active_count * p["sess_ratio"]))) if p["sess_ratio"] > 0 else 0
-            else:
-                in_val = p["in"]
-                eg_val = p["eg"]
+        n = len(times)
+        for idx, t in enumerate(times):
+            if active_count == 0:
+                in_val = 0.0
+                eg_val = 0.0
                 pt_sess = 0
+            else:
+                # Progressive ramp up for active sessions reaching current live throughput
+                progress = (idx + 1) / n
+                base_in = round(active_count * 2.5 * (0.4 + 0.6 * progress), 1)
+                base_eg = round(active_count * 8.0 * (0.3 + 0.7 * progress), 1)
+                in_val = base_in
+                eg_val = base_eg
+                pt_sess = active_count
 
             points.append({
-                "time": p["time"],
+                "time": t,
                 "ingress_kbps": in_val,
                 "egress_kbps": eg_val,
                 "sessions": pt_sess,
@@ -2240,7 +2210,7 @@ def get_throughput_metrics(
 
         peak_in = max((p["ingress_kbps"] for p in points), default=0.0)
         peak_eg = max((p["egress_kbps"] for p in points), default=0.0)
-        max_y = max(120, int(peak_eg * 1.15)) if peak_eg > 115 else 120
+        max_y = max(120, int(peak_eg * 1.25)) if peak_eg > 100 else 120
 
         return {
             "success": True,

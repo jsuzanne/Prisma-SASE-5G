@@ -793,10 +793,9 @@ class Prisma5GClient:
             total_down = 0
 
         # Configured Users (SIMs in tenant inventory)
-        ues_res = self.list_tenant_ues(target_tsg)
-        total_users = ues_res.get("totalItems", 0)
-        # For demo/display baseline alignment if tenant has standard pool
-        display_users = total_users if total_users > 0 else 200
+        ues_res = self.list_tenant_ues()
+        total_users = ues_res.get("totalItems", len(ues_res.get("models", [])))
+        display_users = total_users
 
         return {
             "total_5g_tenants": total_tenants,
