@@ -45,6 +45,24 @@ class Open5GSClient:
         self.mock_mode = mock_mode or (os.environ.get("MOCK_MODE", "false").lower() == "true")
         self._mock_subscribers: Dict[str, Dict[str, Any]] = {}
         self._mock_sessions: Dict[str, Dict[str, Any]] = {}
+        self._mongo_client = None
+
+    @property
+    def mongo_db(self):
+        """Lazily initialize and return PyMongo database instance if available."""
+        if self.mock_mode:
+            return None
+        if self._mongo_client is None:
+            try:
+                import pymongo
+                self._mongo_client = pymongo.MongoClient(self.mongo_uri, serverSelectionTimeoutMS=2000)
+            except Exception as e:
+                logger.warning(f"Could not initialize PyMongo client: {e}")
+                return None
+        try:
+            return self._mongo_client["open5gs"]
+        except Exception:
+            return None
 
     def _exec_command(self, cmd: str) -> str:
         """Execute command locally if on Core host, or over SSH if remote."""
@@ -156,6 +174,20 @@ class Open5GSClient:
             logger.info(f"[Mock] Subscriber {endpoint.imsi} created in memory.")
             return True
 
+        if self.mongo_db is not None:
+            try:
+                try:
+                    import bson
+                    if "security" in doc and "sqn" in doc["security"]:
+                        doc["security"]["sqn"] = bson.int64.Int64(doc["security"]["sqn"])
+                except Exception:
+                    pass
+                self.mongo_db.subscribers.replace_one({"imsi": str(endpoint.imsi)}, doc, upsert=True)
+                logger.info(f"Subscriber {endpoint.imsi} successfully provisioned in MongoDB via PyMongo.")
+                return True
+            except Exception as e:
+                logger.warning(f"PyMongo create failed, falling back to CLI: {e}")
+
         # Ensure SQN is serialized for mongosh NumberLong
         doc_json = json.dumps(doc)
         mongo_script = f"""
@@ -177,6 +209,14 @@ class Open5GSClient:
         if self.mock_mode:
             return self._mock_subscribers.get(imsi)
 
+        if self.mongo_db is not None:
+            try:
+                doc = self.mongo_db.subscribers.find_one({"imsi": str(imsi)}, {"_id": 0})
+                if doc:
+                    return doc
+            except Exception as e:
+                logger.warning(f"PyMongo get failed: {e}")
+
         mongo_script = f"""
             JSON.stringify(db.getSiblingDB("open5gs").subscribers.findOne({{ imsi: "{imsi}" }}))
         """
@@ -193,6 +233,14 @@ class Open5GSClient:
         """List subscribers from MongoDB."""
         if self.mock_mode:
             return list(self._mock_subscribers.values())
+
+        if self.mongo_db is not None:
+            try:
+                query = {"managed_by": "stigix-orchestrator"} if managed_only else {}
+                docs = list(self.mongo_db.subscribers.find(query, {"_id": 0}))
+                return docs
+            except Exception as e:
+                logger.warning(f"PyMongo list failed: {e}")
 
         query = '{ "managed_by": "stigix-orchestrator" }' if managed_only else "{}"
         mongo_script = f"""
@@ -218,6 +266,14 @@ class Open5GSClient:
             self._mock_subscribers.pop(imsi, None)
             return True
 
+        if self.mongo_db is not None:
+            try:
+                self.mongo_db.subscribers.delete_one({"imsi": str(imsi)})
+                logger.info(f"Subscriber {imsi} deleted via PyMongo.")
+                return True
+            except Exception as e:
+                logger.warning(f"PyMongo delete failed: {e}")
+
         mongo_script = f"""
             db.getSiblingDB("open5gs").subscribers.deleteOne({{
                 imsi: "{imsi}",
@@ -240,7 +296,7 @@ class Open5GSClient:
         return []
 
     def get_core_status(self) -> Dict[str, Any]:
-        """Check status of Open5GS Core systemd services and MongoDB."""
+        """Check status of Open5GS Core services (AMF, SMF, UPF) and MongoDB."""
         if self.mock_mode:
             return {
                 "mongodb": "active",
@@ -250,13 +306,44 @@ class Open5GSClient:
                 "overall": "healthy",
             }
 
-        cmd = "systemctl is-active open5gs-amfd open5gs-smfd open5gs-upfd mongod 2>/dev/null || true"
-        out = self._exec_command(cmd)
-        lines = [l.strip() for l in out.splitlines() if l.strip()]
-        amf_s = lines[0] if len(lines) > 0 else "unknown"
-        smf_s = lines[1] if len(lines) > 1 else "unknown"
-        upf_s = lines[2] if len(lines) > 2 else "unknown"
-        mongo_s = lines[3] if len(lines) > 3 else "unknown"
+        # 1. MongoDB Status
+        mongo_s = "inactive"
+        if self.client is not None:
+            try:
+                self.client.admin.command("ping")
+                mongo_s = "active"
+            except Exception:
+                mongo_s = "inactive"
+
+        # 2. AMF Status (REST API probe)
+        amf_s = "inactive"
+        try:
+            amf_res = self._http_get(f"{self.amf_url}/ue-info?page=-1")
+            if amf_res is not None:
+                amf_s = "active"
+        except Exception:
+            amf_s = "inactive"
+
+        # 3. SMF Status (REST API probe)
+        smf_s = "inactive"
+        try:
+            smf_res = self._http_get(f"{self.smf_url}/pdu-info?page=-1")
+            if smf_res is not None:
+                smf_s = "active"
+        except Exception:
+            smf_s = "inactive"
+
+        # 4. UPF Status (Inferred from SMF/PFCP and systemctl fallback)
+        upf_s = "inactive"
+        if smf_s == "active":
+            upf_s = "active"
+        else:
+            try:
+                out = self._exec_command("systemctl is-active open5gs-upfd 2>/dev/null || true")
+                if "active" in out:
+                    upf_s = "active"
+            except Exception:
+                pass
 
         all_ok = all(s == "active" for s in [amf_s, smf_s, upf_s, mongo_s])
         return {
