@@ -1,0 +1,21 @@
+root       33572  0.0  0.0  17148  7016 pts/1    S+   Oct01   0:00 sudo ./build/nr-gnb -c config/open5gs-gnb.yaml
+root       33573  0.0  0.0  17148  2656 pts/2    Ss   Oct01   0:00 sudo ./build/nr-gnb -c config/open5gs-gnb.yaml
+root       33574  0.1  0.0 758616 10704 pts/2    Sl+  Oct01   1:34 ./build/nr-gnb -c config/open5gs-gnb.yaml
+root       33591  0.0  0.0  17156  6980 pts/3    S+   Oct01   0:00 sudo ./build/nr-ue -c config/open5gs-ue.yaml
+root       33592  0.0  0.0  17156  2596 pts/4    Ss   Oct01   0:00 sudo ./build/nr-ue -c config/open5gs-ue.yaml
+root       33593  0.1  0.0 616712  7516 pts/4    Sl+  Oct01   1:55 ./build/nr-ue -c config/open5gs-ue.yaml
+--- IP ADDR ---
+lo               UNKNOWN        127.0.0.1/8 ::1/128 
+enp1s0           UP             152.236.5.67/32 fe80::4a:16ff:fe83:56ab/64 
+enp2s0           UP             10.10.10.2/24 fe80::4f:f5ff:fe24:3e8b/64 
+uesimtun0        UNKNOWN        10.45.0.3/24 fe80::1423:2819:c663:561b/64 
+docker0          DOWN           172.17.0.1/16 fe80::38f2:f4ff:fec4:fcbb/64 
+br-f2331ccd9a80  UP             172.18.0.1/16 fe80::78ce:42ff:fec7:fc0/64 
+veth8564d23@if2  UP             fe80::c01e:80ff:fee8:ae04/64 
+--- IP ROUTE ---
+default via 152.236.5.1 dev enp1s0 proto static onlink 
+10.10.10.0/24 dev enp2s0 proto kernel scope link src 10.10.10.2 
+10.45.0.0/24 dev uesimtun0 proto kernel scope link src 10.45.0.3 
+152.236.5.1 dev enp1s0 proto static scope link 
+172.17.0.0/16 dev docker0 proto kernel scope link src 172.17.0.1 linkdown 
+172.18.0.0/16 dev br-f2331ccd9a80 proto kernel scope link src 172.18.0.1 

@@ -1,0 +1,109 @@
+[
+  {
+    "_id": "6abbcd19ce56c3aa0b348517",
+    "imsi": "901700000000001",
+    "security": {
+      "k": "465B5CE8B199B49FAA5F0A2EE238A6BC",
+      "op": "E8ED289DEBA952E4283B54E88E6183CA",
+      "op_type": "OP",
+      "amf": "8000",
+      "sqn": {
+        "high": 0,
+        "low": 0,
+        "unsigned": false
+      }
+    },
+    "slice": [
+      {
+        "sst": 1,
+        "default_indicator": true,
+        "session": [
+          {
+            "name": "internet",
+            "type": 3,
+            "ambr": {
+              "uplink": {
+                "value": 1,
+                "unit": 3
+              },
+              "downlink": {
+                "value": 1,
+                "unit": 3
+              }
+            },
+            "qos": {
+              "index": 9,
+              "arp": {
+                "priority_level": 8,
+                "pre_emption_capability": 1,
+                "pre_emption_vulnerability": 1
+              }
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "_id": "6abbd047ce56c3aa0b34869f",
+    "imsi": "999700000000001",
+    "security": {
+      "amf": "8000",
+      "k": "465B5CE8B199B49FAA5F0A2EE238A6BC",
+      "op": "E8ED289DEBA952E4283B54E88E6183CA",
+      "op_type": "OP",
+      "sqn": {
+        "high": 0,
+        "low": 353,
+        "unsigned": false
+      }
+    },
+    "slice": [
+      {
+        "sst": 1,
+        "default_indicator": true,
+        "session": [
+          {
+            "name": "internet",
+            "type": 3,
+            "ambr": {
+              "uplink": {
+                "value": 1,
+                "unit": 3
+              },
+              "downlink": {
+                "value": 1,
+                "unit": 3
+              }
+            },
+            "qos": {
+              "index": 9,
+              "arp": {
+                "priority_level": 8,
+                "pre_emption_capability": 1,
+                "pre_emption_vulnerability": 1
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "imeisv": "4370816125816151",
+    "access_restriction_data": 32,
+    "ambr": {
+      "downlink": {
+        "value": 1,
+        "unit": 3
+      },
+      "uplink": {
+        "value": 1,
+        "unit": 3
+      }
+    },
+    "network_access_mode": 0,
+    "operator_determined_barring": 0,
+    "schema_version": 1,
+    "subscribed_rau_tau_timer": 12,
+    "subscriber_status": 0
+  }
+]
