@@ -1398,10 +1398,7 @@ def list_ues(tsg_id: Optional[str] = None):
             imei_str = str(m.imei) if m.imei else ""
 
             live_core_sess = core_sessions.get(imsi_clean) or core_sessions.get(imsi_str)
-            if client.config.standalone_mode:
-                sess_info = live_core_sess or active_sess.get(imsi_str) or (active_sess.get(imei_str) if imei_str else None)
-            else:
-                sess_info = live_core_sess
+            sess_info = live_core_sess or active_sess.get(imsi_str) or (active_sess.get(imei_str) if imei_str else None)
 
             ipv4 = sess_info["ipv4_addr"] if sess_info else None
             status = "Active" if (sess_info and sess_info.get("status") == "Active") else "Inactive"
@@ -2554,7 +2551,14 @@ def serve_index():
     index_file = BASE_DIR / "templates" / "index.html"
     if not index_file.exists():
         raise HTTPException(status_code=404, detail="Template index.html not found")
-    return HTMLResponse(content=index_file.read_text(encoding="utf-8"))
+    return HTMLResponse(
+        content=index_file.read_text(encoding="utf-8"),
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
+    )
 
 
 if __name__ == "__main__":
