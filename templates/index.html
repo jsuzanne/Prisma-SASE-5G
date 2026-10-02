@@ -1907,11 +1907,8 @@
 
                         <div class="flex items-center gap-2.5 self-end md:self-auto">
                             <span id="summary-ue-count-badge" class="px-2.5 py-1 rounded-lg bg-white/5 text-[11px] font-mono text-gray-400">Loading...</span>
-                            <button onclick="refreshUEMappings(this)" class="p-2 rounded-xl glass-panel hover:bg-white/10 text-gray-300 hover:text-white transition cursor-pointer" title="Refresh Mappings">
-                                <i data-lucide="rotate-cw" class="w-4 h-4"></i>
-                            </button>
-                            <button onclick="switchTab('tab-sims')" class="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow transition">
-                                <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add / Manage SIMs
+                            <button onclick="openAddSimModal()" class="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow transition cursor-pointer">
+                                <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add New SIM
                             </button>
                         </div>
                     </div>
@@ -4050,6 +4047,10 @@
             } else if (tabId === 'tab-summary') {
                 loadSummaryMetrics();
                 loadThroughputChart();
+            } else if (tabId === 'tab-sims') {
+                fetchSIMs();
+            } else if (tabId === 'tab-groups') {
+                fetchGroups();
             }
 
             lucide.createIcons();
