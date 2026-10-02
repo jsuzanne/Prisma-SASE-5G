@@ -81,8 +81,8 @@ class UERANSIMClient:
         op_type = endpoint.security.op_type.upper()
         amf = endpoint.security.amf
         imei = endpoint.imei
-        # Default imeisv with '01' if 15 digits
-        imeisv = f"{imei}01" if len(imei) == 15 else imei
+        # Ensure IMEISV is exactly 16 digits (TAC 8 + SNR 6 + SV 2)
+        imeisv = f"{imei[:14]}01" if len(imei) >= 14 else f"{imei}01"
 
         sst = endpoint.slice.sst
         sd_entry = f"    sd: {endpoint.slice.sd}\n" if endpoint.slice.sd else ""
@@ -149,6 +149,28 @@ integrityMaxRate:
 """
         return yaml_content
 
+    def _write_file(self, file_path: str, content: str) -> None:
+        """Write file locally or remotely over SSH using sudo tee."""
+        if self.mock_mode:
+            return
+        if os.environ.get("ROLE") in ("ue-agent", "all") or not self.ssh_host:
+            p = subprocess.run(["sudo", "tee", file_path], input=content, text=True, capture_output=True)
+            if p.returncode != 0:
+                logger.error(f"Failed to write local file {file_path}: {p.stderr}")
+            return
+
+        ssh_cmd = [
+            "ssh",
+            "-o", "BatchMode=yes",
+            "-o", "ConnectTimeout=5",
+            "-o", "StrictHostKeyChecking=accept-new",
+            self.ssh_host,
+            f"sudo mkdir -p $(dirname {file_path}) && sudo tee {file_path} > /dev/null",
+        ]
+        p = subprocess.run(ssh_cmd, input=content, text=True, capture_output=True)
+        if p.returncode != 0:
+            logger.error(f"Failed to write remote file {file_path} on {self.ssh_host}: {p.stderr}")
+
     def start_ue(self, endpoint: OrchestratedEndpoint) -> Dict[str, Any]:
         """Deploy YAML configuration and spawn nr-ue process."""
         imsi = str(endpoint.imsi)
@@ -164,27 +186,20 @@ integrityMaxRate:
             }
             return self._mock_processes[imsi]
 
-        # 1. Create managed config directory if missing
-        managed_dir = f"{self.ueransim_dir}/config/managed"
-        self._exec_command(f"sudo mkdir -p {managed_dir}")
+        # 1. Write YAML config file safely via stdin
+        config_path = f"{self.ueransim_dir}/config/managed/ue-{imsi}.yaml"
+        self._write_file(config_path, yaml_content)
 
-        # 2. Write YAML config file safely
-        config_path = f"{managed_dir}/ue-{imsi}.yaml"
-        # Escape single quotes in yaml for shell
-        escaped_yaml = yaml_content.replace("'", "'\\''")
-        write_cmd = f"sudo bash -c 'cat << \"EOF\" > {config_path}\n{yaml_content}\nEOF'"
-        self._exec_command(write_cmd)
-
-        # 3. Terminate any previous instance for this IMSI
+        # 2. Terminate any previous instance for this IMSI
         self.stop_ue(imsi)
 
-        # 4. Launch nr-ue in background
+        # 3. Launch nr-ue in background via sudo bash
         log_path = f"/tmp/nr-ue-{imsi}.log"
-        run_cmd = f"cd {self.ueransim_dir} && sudo nohup ./build/nr-ue -c {config_path} > {log_path} 2>&1 &"
+        run_cmd = f"sudo bash -c 'cd {self.ueransim_dir} && nohup ./build/nr-ue -c {config_path} > {log_path} 2>&1 &'"
         self._exec_command(run_cmd)
 
         # Allow process a moment to initialize
-        time.sleep(1.0)
+        time.sleep(1.5)
         status = self.get_ue_status(imsi)
         return status
 

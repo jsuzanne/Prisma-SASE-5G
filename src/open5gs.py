@@ -140,11 +140,14 @@ class Open5GSClient:
             logger.info(f"[Mock] Subscriber {endpoint.imsi} created in memory.")
             return True
 
+        # Ensure SQN is serialized for mongosh NumberLong
         doc_json = json.dumps(doc)
         mongo_script = f"""
+            const d = {doc_json};
+            d.security.sqn = NumberLong(d.security.sqn || 0);
             db.getSiblingDB("open5gs").subscribers.replaceOne(
                 {{ imsi: "{endpoint.imsi}" }},
-                {doc_json},
+                d,
                 {{ upsert: true }}
             );
         """
