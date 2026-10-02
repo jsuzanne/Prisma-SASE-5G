@@ -1,0 +1,25 @@
+services:
+  prisma-5g-core:
+    image: jsuzanne/prisma-5g-sase:5g-orchestrator
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: prisma-5g-core
+    network_mode: host
+    environment:
+      - PYTHONUNBUFFERED=1
+      - ROLE=core
+      - PORT=8080
+      - MONGO_URI=mongodb://127.0.0.1:27017
+      - SMF_URL=http://127.0.0.4:9090
+      - AMF_URL=http://127.0.0.5:9090
+      - UE_AGENT_URL=http://10.10.10.2:8081
+      - PRISMA_SYNC_ENABLED=false # Set to true when real Prisma SASE tenant credentials are configured
+      # Optional Prisma SASE credentials (can also be configured via Settings in Web UI):
+      # - PANW_CLIENT_ID=...
+      # - PANW_CLIENT_SECRET=...
+      # - PANW_TSG_ID=...
+    volumes:
+      - ./config:/app/config
+      - ./data:/app/data
+    restart: unless-stopped

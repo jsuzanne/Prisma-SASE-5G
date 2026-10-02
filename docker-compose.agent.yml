@@ -1,0 +1,22 @@
+services:
+  prisma-5g-agent:
+    image: jsuzanne/prisma-5g-sase:5g-orchestrator
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: prisma-5g-agent
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - /home/ubuntu/UERANSIM:/opt/UERANSIM:ro
+      - /home/ubuntu/UERANSIM/config/managed:/opt/UERANSIM/config/managed
+      - ./config:/app/config
+    environment:
+      - PYTHONUNBUFFERED=1
+      - ROLE=ue-agent
+      - AGENT_PORT=8081
+      - UERANSIM_DIR=/opt/UERANSIM
+    restart: unless-stopped

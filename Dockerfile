@@ -30,12 +30,12 @@ COPY CHANGELOG.md /app/CHANGELOG.md
 COPY VERSION /app/VERSION
 COPY .env.example /app/.env.example
 
-# Expose port
-EXPOSE 8000
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
-# Healthcheck
-HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/api/status || exit 1
+# Expose ports
+EXPOSE 8000 8080 8081
 
-# Start FastAPI server
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+# Entrypoint dispatcher
+ENTRYPOINT ["/app/entrypoint.sh"]
+
