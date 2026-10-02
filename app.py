@@ -640,6 +640,54 @@ def test_5g_tunnel_ping(interface_or_imsi: str):
     }
 
 
+@app.get("/api/5g/logs/dual")
+@app.get("/api/5g/logs/dual/{imsi}")
+def get_dual_5g_logs(imsi: Optional[str] = None, lines: int = 60):
+    """Retrieve synchronized dual real-time logs from BOTH Open5GS 5G Core AND UERANSIM RAN containers."""
+    core = get_open5gs_client()
+    ran = get_ueransim_client()
+
+    core_logs = core.get_core_logs(imsi=imsi, lines=lines)
+    # Target IMSI for RAN: provided IMSI, or active test IMSI, or baseline lab IMSI
+    target_imsi = imsi or "999700000000105"
+    ran_logs = ran.get_ue_logs(imsi=target_imsi, lines=lines)
+    ran_status = ran.get_ue_status(imsi=target_imsi)
+
+    return {
+        "imsi": imsi,
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "core": {
+            "title": "Open5GS 5G Core (AMF / SMF / UPF)",
+            "host": core.ssh_host or "152.236.5.40",
+            "lines": core_logs.get("lines", lines),
+            "logs": core_logs.get("logs", ""),
+        },
+        "ran": {
+            "title": "UERANSIM 5G Radio (nr-ue / gNodeB)",
+            "host": ran.ssh_host or "152.236.5.67",
+            "imsi": target_imsi,
+            "log_path": ran_logs.get("log_path", ""),
+            "status": ran_status,
+            "lines": ran_logs.get("lines", lines),
+            "logs": ran_logs.get("logs", ""),
+        },
+    }
+
+
+@app.get("/api/5g/ue/logs/{imsi}")
+def get_ue_radio_logs(imsi: str, lines: int = 50):
+    """Retrieve live radio and NAS connection logs for a specific UE from the UERANSIM RAN host."""
+    ran = get_ueransim_client()
+    return ran.get_ue_logs(imsi=imsi, lines=lines)
+
+
+@app.get("/api/5g/ue/status/{imsi}")
+def get_ue_radio_status(imsi: str):
+    """Retrieve live radio state, PID, PDU session status, and allocated TUN IP for a specific UE."""
+    ran = get_ueransim_client()
+    return ran.get_ue_status(imsi=imsi)
+
+
 @app.get("/api/5g/verticals")
 def get_verticals_catalog():
     """Retrieve complete 5G industry verticals catalog."""
