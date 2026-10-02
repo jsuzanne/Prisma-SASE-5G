@@ -281,3 +281,21 @@ integrityMaxRate:
                     imsi = match.group(1)
                     results.append(self.get_ue_status(imsi))
         return results
+
+    def get_active_tun_interfaces(self) -> List[Dict[str, str]]:
+        """List active uesimtun network interfaces and their allocated IPs on the RAN host."""
+        if self.mock_mode:
+            return [{"interface": "uesimtun0", "status": "UNKNOWN", "ip": "10.45.0.3", "cidr": "10.45.0.3/24"}]
+
+        out = self._exec_command("ip -br a | grep uesimtun || true")
+        interfaces = []
+        if out:
+            for line in out.splitlines():
+                parts = line.split()
+                if len(parts) >= 3:
+                    iface = parts[0]
+                    state = parts[1]
+                    ip_cidr = parts[2]
+                    ip = ip_cidr.split("/")[0] if "/" in ip_cidr else ip_cidr
+                    interfaces.append({"interface": iface, "status": state, "ip": ip, "cidr": ip_cidr})
+        return interfaces

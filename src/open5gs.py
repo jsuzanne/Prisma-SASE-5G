@@ -239,6 +239,34 @@ class Open5GSClient:
             return data.get("items", [])
         return []
 
+    def get_core_status(self) -> Dict[str, Any]:
+        """Check status of Open5GS Core systemd services and MongoDB."""
+        if self.mock_mode:
+            return {
+                "mongodb": "active",
+                "amf": "active",
+                "smf": "active",
+                "upf": "active",
+                "overall": "healthy",
+            }
+
+        cmd = "systemctl is-active open5gs-amfd open5gs-smfd open5gs-upfd mongod 2>/dev/null || true"
+        out = self._exec_command(cmd)
+        lines = [l.strip() for l in out.splitlines() if l.strip()]
+        amf_s = lines[0] if len(lines) > 0 else "unknown"
+        smf_s = lines[1] if len(lines) > 1 else "unknown"
+        upf_s = lines[2] if len(lines) > 2 else "unknown"
+        mongo_s = lines[3] if len(lines) > 3 else "unknown"
+
+        all_ok = all(s == "active" for s in [amf_s, smf_s, upf_s, mongo_s])
+        return {
+            "amf": amf_s,
+            "smf": smf_s,
+            "upf": upf_s,
+            "mongodb": mongo_s,
+            "overall": "healthy" if all_ok else "degraded",
+        }
+
     def get_amf_ue_info(self) -> List[Dict[str, Any]]:
         """Fetch real-time attached UEs from Open5GS AMF."""
         if self.mock_mode:
