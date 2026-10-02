@@ -528,9 +528,21 @@ def load_active_sessions(target_dir: Optional[Union[str, Path]] = None) -> Dict[
                 return data
         except Exception:
             pass
-    # Initialize and return defaults
-    save_active_sessions(DEFAULT_ACTIVE_5G_SESSIONS, target_dir)
-    return dict(DEFAULT_ACTIVE_5G_SESSIONS)
+    return {}
+
+
+def purge_all_caches(target_dir: Optional[Union[str, Path]] = None) -> Dict[str, Any]:
+    """Purge all stale fallback cache and session files (Transatel demo reset)."""
+    save_cached_groups([], target_dir)
+    save_cached_ues([], target_dir)
+    save_active_sessions({}, target_dir)
+    save_sim_metadata({}, target_dir)
+    return {
+        "purged_groups": True,
+        "purged_ues": True,
+        "purged_sessions": True,
+        "purged_metadata": True,
+    }
 
 
 def save_active_sessions(sessions: Dict[str, Dict[str, Any]], target_dir: Optional[Union[str, Path]] = None) -> None:

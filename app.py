@@ -1187,7 +1187,7 @@ def list_ues(tsg_id: Optional[str] = None):
         items = resp.get("data", [])
         models = resp.get("models", [])
         
-        if not models:
+        if not models and client.config.standalone_mode:
             fallback_data = synthesize_fallback_ues(tsg_id=tsg_id)
             return {
                 "success": True,
@@ -1195,7 +1195,6 @@ def list_ues(tsg_id: Optional[str] = None):
                 "data": fallback_data,
                 "fallback": True,
                 "source": "offline_cache",
-                "cloud_status": "503_or_empty",
             }
 
         # Convert models to rich json list
@@ -1632,15 +1631,22 @@ def list_groups(tsg_id: Optional[str] = None):
         models = resp.get("models", [])
         
         if not models:
-            fallback_groups = synthesize_fallback_groups(tsg_id=tsg_id)
-            return {
-                "success": True,
-                "count": len(fallback_groups),
-                "data": fallback_groups,
-                "fallback": True,
-                "source": "offline_cache",
-                "cloud_status": "503_or_empty",
-            }
+            if client.config.standalone_mode:
+                fallback_groups = synthesize_fallback_groups(tsg_id=tsg_id)
+                return {
+                    "success": True,
+                    "count": len(fallback_groups),
+                    "data": fallback_groups,
+                    "fallback": True,
+                    "source": "offline_cache",
+                }
+            else:
+                return {
+                    "success": True,
+                    "count": 0,
+                    "data": [],
+                    "fallback": False,
+                }
 
         group_list = []
         for g in models:
@@ -1672,16 +1678,111 @@ def list_groups(tsg_id: Optional[str] = None):
             "fallback": False,
         }
     except Exception as exc:
-        fallback_groups = synthesize_fallback_groups(tsg_id=tsg_id)
+        if client.config.standalone_mode:
+            fallback_groups = synthesize_fallback_groups(tsg_id=tsg_id)
+            return {
+                "success": True,
+                "count": len(fallback_groups),
+                "data": fallback_groups,
+                "fallback": True,
+                "source": "offline_cache",
+                "cloud_status": "503_upstream_unavailable",
+                "cloud_error": str(exc),
+            }
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/api/cleanup/purge-transatel")
+def purge_transatel_demo_data():
+    """
+    Completely purge stale Transatel demo cache, ghost group memberships,
+    and synchronize clean state with the active live SCM tenant & Open5GS Core.
+    """
+    try:
+        from src.config import purge_all_caches
+        purge_result = purge_all_caches()
+        
+        client = get_current_client()
+        
+        # 1. Fetch live SIMs from SCM to know valid identity IDs
+        live_identities = set()
+        try:
+            ues_resp = client.list_tenant_ues()
+            for m in ues_resp.get("models", []):
+                if m.identity_id:
+                    live_identities.add(str(m.identity_id))
+        except Exception as e:
+            logger.warning(f"Could not list live UEs during cleanup: {e}")
+
+        # 2. Inspect live SCM groups and clean ghost member IDs
+        cleaned_groups = []
+        try:
+            groups_resp = client.list_user_groups()
+            for g in groups_resp.get("models", []):
+                gid = str(g.group_id)
+                current_members = [str(x) for x in (g.identity_ids or [])]
+                # Filter out any member that is not in live_identities
+                valid_members = [m for m in current_members if m in live_identities]
+                if len(valid_members) != len(current_members):
+                    client.update_user_group(
+                        group_id=gid,
+                        group_name=g.name,
+                        identity_ids=valid_members,
+                        tsg_id=g.tsg_id,
+                    )
+                    cleaned_groups.append({
+                        "group_id": gid,
+                        "name": g.name,
+                        "removed_ghost_count": len(current_members) - len(valid_members),
+                        "remaining_members": len(valid_members),
+                    })
+        except Exception as e:
+            logger.warning(f"Could not clean live groups: {e}")
+
         return {
             "success": True,
-            "count": len(fallback_groups),
-            "data": fallback_groups,
-            "fallback": True,
-            "source": "offline_cache",
-            "cloud_status": "503_upstream_unavailable",
-            "cloud_error": str(exc),
+            "purged_caches": purge_result,
+            "live_sim_count": len(live_identities),
+            "cleaned_groups": cleaned_groups,
+            "message": f"Successfully purged Transatel demo cache. Preserved {len(live_identities)} live SIM(s).",
         }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/api/groups/init-defaults")
+def init_default_groups_on_tenant(target_tsg_id: Optional[str] = None):
+    """Create the 4 standard 5G Zero-Trust subscriber groups on the active SCM tenant."""
+    try:
+        client = get_current_client()
+        tsg = target_tsg_id or client.config.tsg_id
+        
+        default_defs = [
+            ("Permissive", "Standard corporate/fleet profile with broad cloud connectivity."),
+            ("Restrictive", "Strictly isolated zero-trust IoT profile blocking unauthorized external egress."),
+            ("IoT-Smart-Sensors", "Low-bandwidth sensor profile with strict telemetry rate limits."),
+            ("IT-engineering", "High-privilege remote maintenance and SSH telemetry tunnel access."),
+        ]
+        
+        created = []
+        for gname, desc in default_defs:
+            try:
+                res = client.create_user_group(
+                    group_name=gname,
+                    tsg_id=tsg,
+                    identity_ids=[],
+                )
+                created.append({"name": gname, "result": res})
+            except Exception as e:
+                created.append({"name": gname, "error": str(e)})
+
+        return {
+            "success": True,
+            "created": created,
+            "message": f"Initialized {len(created)} default group profile(s) on TSG {tsg}",
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @app.post("/api/groups")
