@@ -1340,18 +1340,54 @@ def list_ues(tsg_id: Optional[str] = None):
                 "source": "offline_cache",
             }
 
+        # Collect live sessions from Open5GS Core & UERANSIM
+        core_sessions = {}
+        try:
+            core = get_open5gs_client()
+            for item in core.get_smf_pdu_info():
+                supi = str(item.get("supi", "")).replace("imsi-", "")
+                for pdu in item.get("pdu", []):
+                    if pdu.get("ipv4"):
+                        core_sessions[supi] = {
+                            "ipv4_addr": pdu.get("ipv4"),
+                            "status": "Active",
+                            "region": "europe-west9",
+                            "tenant_status": "Yes",
+                        }
+        except Exception as e:
+            logger.debug("Could not query Open5GS SMF sessions for list_ues: %s", e)
+
+        try:
+            ran = get_ueransim_client()
+            for ue in ran.list_active_ues():
+                u_imsi = str(ue.get("imsi", ""))
+                st = ran.get_ue_status(u_imsi)
+                if st.get("assigned_ip"):
+                    core_sessions[u_imsi] = {
+                        "ipv4_addr": st.get("assigned_ip"),
+                        "status": "Active",
+                        "region": "europe-west9",
+                        "tenant_status": "Yes",
+                    }
+        except Exception as e:
+            logger.debug("Could not query UERANSIM status for list_ues: %s", e)
+
         # Convert models to rich json list
         res_data = []
         for m in models:
             imsi_str = str(m.imsi)
+            imsi_clean = re.sub(r"\D", "", imsi_str)
             imei_str = str(m.imei) if m.imei else ""
-            sess_info = active_sess.get(imsi_str) or (active_sess.get(imei_str) if imei_str else None)
-            ipv4 = m.ipv4_addr or (sess_info["ipv4_addr"] if sess_info else None)
-            status = m.status if (m.ipv4_addr and m.status) else (sess_info["status"] if sess_info else ("Active" if ipv4 else "Inactive"))
+
+            live_core_sess = core_sessions.get(imsi_clean) or core_sessions.get(imsi_str)
+            sess_info = live_core_sess or active_sess.get(imsi_str) or (active_sess.get(imei_str) if imei_str else None)
+
+            ipv4 = (sess_info["ipv4_addr"] if sess_info else None) or m.ipv4_addr
+            status = "Active" if (sess_info and sess_info.get("status") == "Active") or (m.ipv4_addr and m.status == "Active") or (ipv4 and m.status == "Active") else "Inactive"
             region = m.region or (sess_info["region"] if sess_info else ("europe-west9" if status == "Active" else None))
             tenant_status = "Yes" if status == "Active" else (m.tenant_status or "No")
             
-            meta = local_meta.get(imsi_str, {})
+            meta = local_meta.get(imsi_str, {}) or local_meta.get(imsi_clean, {})
 
             res_data.append({
                 "identity_id": m.identity_id,
@@ -1372,7 +1408,7 @@ def list_ues(tsg_id: Optional[str] = None):
                 "device_type": meta.get("device_type"),
                 "custom_label": meta.get("custom_label"),
                 "icon": meta.get("icon"),
-                "last_ip": meta.get("last_ip") or ipv4 or (sess_info.get("ipv4_addr") if sess_info else None),
+                "last_ip": ipv4 or meta.get("last_ip") or (sess_info.get("ipv4_addr") if sess_info else None),
             })
 
         save_cached_ues(res_data)
