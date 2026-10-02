@@ -225,15 +225,19 @@ def list_verticals() -> List[Dict[str, Any]]:
     return [profile.to_dict() for profile in VERTICAL_CATALOG.values()]
 
 
-def generate_device_credentials(vertical_id: str, custom_imsi: Optional[str] = None) -> Dict[str, Any]:
+def generate_device_credentials(
+    vertical_id: str,
+    custom_imsi: Optional[str] = None,
+    custom_imei: Optional[str] = None,
+) -> Dict[str, Any]:
     """
     Generate complete credentials (IMSI, IMEI, IMEISV, K, OPc, Slice, QoS) for a vertical.
     """
     profile = get_vertical(vertical_id) or VERTICAL_CATALOG["executive_user"]
     
     # Generate realistic credentials
-    imei = generate_imei(profile.tac_prefix)
-    imeisv = generate_imeisv(profile.tac_prefix)
+    imei = custom_imei or generate_imei(profile.tac_prefix)
+    imeisv = f"{imei[:14]}01" if len(imei) >= 14 else generate_imeisv(profile.tac_prefix)
     k = generate_k()
     opc = generate_opc()
     
