@@ -2109,6 +2109,71 @@
                     </div>
                 </div>
 
+                <!-- Interactive Action & Protocol Guide (Collapsible) -->
+                <div id="action-guide-panel" class="p-4 rounded-2xl glass-panel border border-cyan-500/20 bg-gray-950/60 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <div class="w-7 h-7 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+                                <i data-lucide="info" class="w-4 h-4"></i>
+                            </div>
+                            <span class="text-xs font-bold text-white font-sans tracking-wide">💡 5G Actions & Live Demo Guide</span>
+                        </div>
+                        <button type="button" onclick="toggleActionGuide()" class="text-xs text-gray-400 hover:text-white transition flex items-center gap-1 cursor-pointer">
+                            <span id="action-guide-toggle-label">Hide Guide</span> <i id="action-guide-toggle-icon" data-lucide="chevron-up" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+
+                    <div id="action-guide-content" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-2.5 text-[11px] font-sans">
+                        <!-- 1. Fleet Power On -->
+                        <div class="p-2.5 rounded-xl bg-gray-900/80 border border-emerald-500/20 space-y-1">
+                            <div class="flex items-center gap-1.5 font-bold text-emerald-300">
+                                <i data-lucide="zap" class="w-3.5 h-3.5 text-emerald-400"></i> Fleet Power On
+                            </div>
+                            <p class="text-gray-400 leading-snug text-[10px]">Simulates mass multi-device bootup. Spawns real UERANSIM radio UEs, assigns unique dynamic 10.45.0.X IPs via Open5GS UPF, and auto-registers identities in SCM.</p>
+                        </div>
+
+                        <!-- 2. Power Off All -->
+                        <div class="p-2.5 rounded-xl bg-gray-900/80 border border-rose-500/20 space-y-1">
+                            <div class="flex items-center gap-1.5 font-bold text-rose-300">
+                                <i data-lucide="power-off" class="w-3.5 h-3.5 text-rose-400"></i> Power Off All
+                            </div>
+                            <p class="text-gray-400 leading-snug text-[10px]">Simulates mass shutdown. Releases active PDU sessions from SCM, terminates radio processes, and purges all orphan Linux TUN interfaces.</p>
+                        </div>
+
+                        <!-- 3. Live Traffic -->
+                        <div class="p-2.5 rounded-xl bg-gray-900/80 border border-indigo-500/20 space-y-1">
+                            <div class="flex items-center gap-1.5 font-bold text-indigo-300">
+                                <i data-lucide="activity" class="w-3.5 h-3.5 text-indigo-400"></i> Live Traffic
+                            </div>
+                            <p class="text-gray-400 leading-snug text-[10px]">Injects real data packets over the device's TUN interface to test Prisma Access inspection: clean HTTP / Ping vs inline Zero-Trust threat block (wicar.org).</p>
+                        </div>
+
+                        <!-- 4. 5G Dual Logs -->
+                        <div class="p-2.5 rounded-xl bg-gray-900/80 border border-cyan-500/20 space-y-1">
+                            <div class="flex items-center gap-1.5 font-bold text-cyan-300">
+                                <i data-lucide="split" class="w-3.5 h-3.5 text-cyan-400"></i> 5G Logs
+                            </div>
+                            <p class="text-gray-400 leading-snug text-[10px]">Real-time dual-container telemetry: synchronizes Open5GS 5G Core control plane (152.236.5.40) with UERANSIM radio events (152.236.5.67).</p>
+                        </div>
+
+                        <!-- 5. Security Groups -->
+                        <div class="p-2.5 rounded-xl bg-gray-900/80 border border-purple-500/20 space-y-1">
+                            <div class="flex items-center gap-1.5 font-bold text-purple-300">
+                                <i data-lucide="shield-check" class="w-3.5 h-3.5 text-purple-400"></i> Security Groups
+                            </div>
+                            <p class="text-gray-400 leading-snug text-[10px]">Dynamically shifts subscriber policy (Permissive vs Restrictive) in Strata Cloud Manager without disconnecting the active 5G session.</p>
+                        </div>
+
+                        <!-- 6. Auto-Enrich Fleet -->
+                        <div class="p-2.5 rounded-xl bg-gray-900/80 border border-amber-500/20 space-y-1">
+                            <div class="flex items-center gap-1.5 font-bold text-amber-300">
+                                <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-400"></i> Auto-Enrich
+                            </div>
+                            <p class="text-gray-400 leading-snug text-[10px]">Transforms raw technical IMSIs into realistic IoT enterprise fleet equipment (4K Cameras, RFID Gates, Barcode Scanners, EV Stations).</p>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Industry Vertical Filter Chips (Visible in Enriched Mode) -->
                 <div id="vertical-filter-container" class="flex items-center gap-1.5 overflow-x-auto custom-scrollbar pb-1 text-xs">
                     <button onclick="filterByVertical('all')" id="chip-vertical-all" class="px-3 py-1 rounded-xl text-[11px] font-medium transition border flex items-center gap-1.5 bg-cyan-500/20 text-cyan-300 border-cyan-500/40">
@@ -6809,7 +6874,27 @@
             }
         }
 
+        function toggleActionGuide() {
+            const content = document.getElementById('action-guide-content');
+            const label = document.getElementById('action-guide-toggle-label');
+            const icon = document.getElementById('action-guide-toggle-icon');
+            if (!content) return;
+
+            const isHidden = content.classList.contains('hidden');
+            if (isHidden) {
+                content.classList.remove('hidden');
+                if (label) label.innerText = 'Hide Guide';
+                if (icon) icon.setAttribute('data-lucide', 'chevron-up');
+            } else {
+                content.classList.add('hidden');
+                if (label) label.innerText = 'Show Guide';
+                if (icon) icon.setAttribute('data-lucide', 'chevron-down');
+            }
+            lucide.createIcons();
+        }
+
         let currentSessionMode = 'attach';
+
 
         function setSessionModalButtonMode(mode) {
             currentSessionMode = mode || 'attach';
