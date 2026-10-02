@@ -6726,7 +6726,9 @@
                 if (res.ok && data.success) {
                     showToast("5G Attached & SCM Registered 🟢", `Dynamic IP: ${data.allocated_ip} | Interface: ${data.interface || 'uesimtun'}`);
                     await fetchSIMs();
-                    await loadThroughputChart();
+                    if (typeof fetch5GCoreMonitoring === 'function') fetch5GCoreMonitoring();
+                    if (typeof loadThroughputChart === 'function') loadThroughputChart();
+                    openUeLogsModal(imsi);
                 } else {
                     showToast("Attach Failed", data.detail || data.message || "Failed to attach", true);
                 }
@@ -6743,7 +6745,8 @@
                 if (res.ok && data.success) {
                     showToast("5G Detached 🔴", `Session released for IMSI ${imsi}`);
                     await fetchSIMs();
-                    await loadThroughputChart();
+                    if (typeof fetch5GCoreMonitoring === 'function') fetch5GCoreMonitoring();
+                    if (typeof loadThroughputChart === 'function') loadThroughputChart();
                 } else {
                     showToast("Detach Failed", data.detail || data.message || "Failed to detach", true);
                 }
