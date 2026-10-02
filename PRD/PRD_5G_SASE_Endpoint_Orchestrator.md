@@ -242,12 +242,96 @@ sequenceDiagram
 
 ---
 
-## 7. Implementation Milestones & Roadmap
+## 7. Traffic Generation & Security Threat Simulation (Stigix Engine Integration)
 
-| Phase | Milestone | Deliverables |
-|---|---|---|
-| **Phase 1** | **Core Provisioning & Models** | - Python MongoDB Open5GS subscriber manager<br>- Vertical profiles JSON catalog<br>- SQLite state repository |
-| **Phase 2** | **UERANSIM Agent & Remote Execution** | - Lightweight Agent API (`ue-agent`) on UERANSIM VM<br>- Automated YAML template generator<br>- Process supervisor for `nr-ue` instances |
-| **Phase 3** | **Prisma SASE 5G Synchronization** | - Integrate `src/client.py` with multi-tenant identity creation<br>- SMF/AMF real-time poller (`/pdu-info`)<br>- Dynamic IP registration & session event lifecycle |
-| **Phase 4** | **Vertical Traffic Simulation** | - Stigix-integrated traffic generators bound to `uesimtunX`<br>- MQTT, RTSP, HTTP/S, and Modbus emulation engines |
-| **Phase 5** | **Unified Web UI & Live Telemetry** | - Interactive dashboard with vertical selector<br>- 1-click Fleet generator<br>- Live session telemetry and Prisma security log correlation |
+To demonstrate zero-trust security policy enforcement, threat prevention, and URL filtering on Prisma SASE 5G, the orchestrator embeds a modular traffic engine capable of generating both benign application flows and malicious threat signatures.
+
+### 7.1 Traffic Modes per Endpoint
+
+| Mode | Traffic Type | Protocol / Target | Intended Prisma SASE Behavior |
+|---|---|---|---|
+| **Normal Business Flow** | IoT Telemetry / Modbus / HTTP / RTSP | MQTT heartbeats, HTTPS SaaS, Modbus TCP | 🟢 Allowed session logged with 5G Identity correlation |
+| **PAN DNS Security Test** | DGA, Malicious DNS, DNS Tunneling | Queries to `*.pan-threat-domain.com` | 🛑 Blocked by Advanced DNS Security + Alert in SCM |
+| **PAN URL Filtering Test** | Malware / Phishing / C2 Web categories | `urlfiltering.paloaltonetworks.com/test-malware` | 🛑 Blocked by Advanced URL Filtering + Block Page |
+| **Data Exfiltration** | Outbound bulk file upload / sensitive data | Heavy outbound POST to external IP | 🛑 Detected / Blocked by DLP & App-ID |
+| **Command & Control Beaconing** | Periodic heartbeat with jitter | Suspicious TCP/UDP beacon | 🛑 Detected by Advanced Threat Prevention (Anti-C2) |
+| **Reconnaissance / Port Scan** | TCP SYN port scan across subnet | Internal/External IP range scan | 🛑 Detected by Vulnerability Protection Recon signature |
+
+### 7.2 Web Browser & Category-Based Navigation
+
+For Human User endpoints (e.g. Executive iPhone / Laptop):
+- **Automated Web Worker**: Iterates through curated URL categories (News, Finance, SaaS, Adult, Gambling, High-Risk) bound to `uesimtunX`.
+- **Interactive SOCKS5 Proxy Mode**: Spawns an internal SOCKS5 proxy bound to a specific `uesimtunX` interface, allowing administrators to configure Chrome/Firefox on their desktop to browse live through any emulated 5G UE.
+
+---
+
+## 8. SSL/TLS Decryption (Forward Proxy) & CA Certificate Management
+
+When Prisma Access enables SSL Forward Proxy Decryption to inspect HTTPS payloads:
+1. **Custom Root CA Bundle Support**: The traffic engine supports loading an enterprise Forward Trust CA certificate via `PRISMA_CA_CERT_PATH` (default: `config/prisma_ca.crt`).
+2. **Automated Trust Injection**: All Python HTTP/HTTPS workers and curl commands pass `--cacert /app/config/prisma_ca.crt` or `verify=ca_bundle`.
+3. **Insecure / Lab Bypass Mode**: A global toggle `VERIFY_SSL=false` enables testing when SSL decryption certificates have not yet been provisioned in the lab.
+4. **Web UI Certificate Management**: The settings tab in the Web UI allows uploading or pasting the `.crt` / `.pem` Forward Trust CA certificate.
+
+---
+
+## 9. Packaging & Multi-Node Deployment
+
+The platform is packaged into a **single Docker image** (`prisma-5g-orchestrator:latest`) deployable via Docker Compose:
+
+### 9.1 Core VM Deployment (`ROLE=core` on `152.236.5.40`)
+```yaml
+services:
+  prisma-5g-core:
+    image: jsuzanne/prisma-5g-sase:5g-orchestrator
+    container_name: prisma-5g-core
+    network_mode: host
+    environment:
+      - ROLE=core
+      - PORT=8080
+      - MONGO_URI=mongodb://127.0.0.1:27017
+      - SMF_URL=http://127.0.0.4:9090
+      - AMF_URL=http://127.0.0.5:9090
+      - UE_AGENT_URL=http://10.10.10.2:8081
+      - PRISMA_SYNC_ENABLED=false # Safe default; set true when tenant is connected
+    volumes:
+      - ./config:/app/config
+      - ./data:/app/data
+    restart: unless-stopped
+```
+
+### 9.2 UERANSIM VM Deployment (`ROLE=ue-agent` on `152.236.5.67`)
+```yaml
+services:
+  prisma-5g-agent:
+    image: jsuzanne/prisma-5g-sase:5g-orchestrator
+    container_name: prisma-5g-agent
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - /home/ubuntu/UERANSIM:/opt/UERANSIM:ro
+      - /home/ubuntu/UERANSIM/config/managed:/opt/UERANSIM/config/managed
+      - ./config:/app/config
+    environment:
+      - ROLE=ue-agent
+      - AGENT_PORT=8081
+      - UERANSIM_DIR=/home/ubuntu/UERANSIM
+    restart: unless-stopped
+```
+
+---
+
+## 10. Implementation Milestones & Roadmap
+
+| Phase | Milestone | Deliverables | Status |
+|---|---|---|---|
+| **Phase 1** | **Vertical Models & Credential Generators** | - Vertical profiles catalog (`smart_camera`, `industry_plc`, etc.)<br>- 128-bit key ($K$, $OP_c$), Luhn IMEI, and models | ✅ **Completed & Tested** |
+| **Phase 2** | **Open5GS Core Manager & Telemetry Poller** | - MongoDB subscriber provisioning (`open5gs.subscribers`)<br>- SMF/AMF real-time session polling (`/pdu-info`) | ✅ **Completed & Live Tested** |
+| **Phase 3** | **UERANSIM Agent & Radio Supervisor** | - YAML template engine in `config/managed/`<br>- `nr-ue` process supervisor & `uesimtun*` verification | ✅ **Completed & Live Tested** |
+| **Phase 4** | **Orchestrator Service & Live Action Logger** | - Unified state machine (`src/orchestrator.py`)<br>- Detailed live logging for Core & RAN commands<br>- Prisma SASE 5G conditional client wrapper | ⏳ **In Progress** |
+| **Phase 5** | **Traffic Engine, Web Browser & Security Threats** | - Stigix-integrated `src/traffic/` workers bound to `uesimtunX`<br>- PAN threat triggers & SSL Forward Trust CA injection | ⏳ **Next** |
+| **Phase 6** | **Unified Web UI & Docker Packaging** | - Interactive Web UI with 1-click Fleet & Traffic Triggers<br>- Docker multi-role image and compose files | ⏳ **Next** |
+
