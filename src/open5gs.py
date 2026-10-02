@@ -308,9 +308,9 @@ class Open5GSClient:
 
         # 1. MongoDB Status
         mongo_s = "inactive"
-        if self.client is not None:
+        if self.mongo_db is not None:
             try:
-                self.client.admin.command("ping")
+                self.mongo_db.command("ping")
                 mongo_s = "active"
             except Exception:
                 mongo_s = "inactive"
