@@ -587,7 +587,7 @@ def get_5g_core_monitoring():
 
 @app.post("/api/5g/cleanup")
 def cleanup_stale_5g_resources():
-    """Safely terminate any stale test UEs on UERANSIM and remove test subscribers from Open5GS MongoDB."""
+    """Safely terminate any stale test UEs on UERANSIM, remove test subscribers from Open5GS MongoDB, and reset SMF memory."""
     core = get_open5gs_client()
     ran = get_ueransim_client()
     cleaned = []
@@ -607,6 +607,21 @@ def cleanup_stale_5g_resources():
         if imsi and imsi not in ("901700000000001", "999700000000001"):
             core.delete_subscriber(imsi)
             cleaned.append(f"Deleted subscriber {imsi}")
+
+    # 3. Purge non-baseline active sessions
+    active_sessions = load_active_sessions()
+    cleaned_sessions = {}
+    for imsi_k, sess in active_sessions.items():
+        if imsi_k in ("901700000000001", "999700000000001"):
+            cleaned_sessions[imsi_k] = sess
+    save_active_sessions(cleaned_sessions)
+
+    # 4. Restart SMF to clear in-memory inactive PDU sessions
+    try:
+        core._exec_command("sudo systemctl restart open5gs-smfd 2>/dev/null || true")
+        cleaned.append("Flushed SMF session memory")
+    except Exception as smf_e:
+        logger.debug("SMF restart warning during cleanup: %s", smf_e)
 
     return {
         "success": True,
@@ -714,27 +729,30 @@ def attach_ue_dynamic(imsi: str):
     imei = (target_ue.imei if target_ue else None) or sim_meta.get("imei") or f"35412809{clean_imsi[-7:]}"
     apn = (target_ue.apn if target_ue else None) or sim_meta.get("apn") or "internet"
 
-    # 2. Check if UE is already running or start it
+    # 2. Ensure subscriber exists in Open5GS Core MongoDB & start radio UE
+    creds = generate_device_credentials(sim_meta.get("vertical", "smart_camera"), custom_imsi=clean_imsi, custom_imei=imei)
+    endpoint = OrchestratedEndpoint(
+        imsi=clean_imsi,
+        imei=imei,
+        apn=apn,
+        vertical_id=sim_meta.get("vertical", "smart_camera"),
+        device_name=sim_meta.get("custom_label") or creds.get("device_model", "5G Device"),
+        vendor=creds.get("vendor", "Standard"),
+        device_model=sim_meta.get("device_type") or creds.get("device_model", "Standard 5G UE"),
+        icon=sim_meta.get("icon") or creds.get("icon", "bi-phone"),
+        security=SecurityConfig(
+            k=creds.get("k", "465B5CE8B199B49FAA5F0A2EE238A6BC"),
+            op=creds.get("op", "E8ED289DEBA952E4283B54E88E6183CA"),
+            op_type=creds.get("op_type", "OP"),
+        ),
+        slice=SliceConfig(sst=1),
+        qos=QoSConfig(five_qi=9, ambr_dl_mbps=100, ambr_ul_mbps=50),
+    )
+    if not core.get_subscriber(clean_imsi):
+        core.add_subscriber(endpoint)
+
     ue_status = ran.get_ue_status(clean_imsi)
     if not ue_status.get("running"):
-        creds = generate_device_credentials(sim_meta.get("vertical", "smart_camera"), custom_imsi=clean_imsi, custom_imei=imei)
-        endpoint = OrchestratedEndpoint(
-            imsi=clean_imsi,
-            imei=imei,
-            apn=apn,
-            vertical_id=sim_meta.get("vertical", "smart_camera"),
-            device_name=sim_meta.get("custom_label") or creds.get("device_model", "5G Device"),
-            vendor=creds.get("vendor", "Standard"),
-            device_model=sim_meta.get("device_type") or creds.get("device_model", "Standard 5G UE"),
-            icon=sim_meta.get("icon") or creds.get("icon", "bi-phone"),
-            security=SecurityConfig(
-                k=creds.get("k", "465B5CE8B199B49FAA5F0A2EE238A6BC"),
-                op=creds.get("op", "E8ED289DEBA952E4283B54E88E6183CA"),
-                op_type=creds.get("op_type", "OP"),
-            ),
-            slice=SliceConfig(sst=1),
-            qos=QoSConfig(five_qi=9, ambr_dl_mbps=100, ambr_ul_mbps=50),
-        )
         ran.start_ue(endpoint)
         time.sleep(1.5)
         ue_status = ran.get_ue_status(clean_imsi)
@@ -1347,7 +1365,7 @@ def list_ues(tsg_id: Optional[str] = None):
             for item in core.get_smf_pdu_info():
                 supi = str(item.get("supi", "")).replace("imsi-", "")
                 for pdu in item.get("pdu", []):
-                    if pdu.get("ipv4"):
+                    if pdu.get("ipv4") and pdu.get("pdu_state") != "inactive":
                         core_sessions[supi] = {
                             "ipv4_addr": pdu.get("ipv4"),
                             "status": "Active",
@@ -1380,10 +1398,13 @@ def list_ues(tsg_id: Optional[str] = None):
             imei_str = str(m.imei) if m.imei else ""
 
             live_core_sess = core_sessions.get(imsi_clean) or core_sessions.get(imsi_str)
-            sess_info = live_core_sess or active_sess.get(imsi_str) or (active_sess.get(imei_str) if imei_str else None)
+            if client.config.standalone_mode:
+                sess_info = live_core_sess or active_sess.get(imsi_str) or (active_sess.get(imei_str) if imei_str else None)
+            else:
+                sess_info = live_core_sess
 
-            ipv4 = (sess_info["ipv4_addr"] if sess_info else None) or m.ipv4_addr
-            status = "Active" if (sess_info and sess_info.get("status") == "Active") or (m.ipv4_addr and m.status == "Active") or (ipv4 and m.status == "Active") else "Inactive"
+            ipv4 = sess_info["ipv4_addr"] if sess_info else None
+            status = "Active" if (sess_info and sess_info.get("status") == "Active") else "Inactive"
             region = m.region or (sess_info["region"] if sess_info else ("europe-west9" if status == "Active" else None))
             tenant_status = "Yes" if status == "Active" else (m.tenant_status or "No")
             
@@ -1898,18 +1919,16 @@ def list_groups(tsg_id: Optional[str] = None):
             "fallback": False,
         }
     except Exception as exc:
-        if client.config.standalone_mode:
-            fallback_groups = synthesize_fallback_groups(tsg_id=tsg_id)
-            return {
-                "success": True,
-                "count": len(fallback_groups),
-                "data": fallback_groups,
-                "fallback": True,
-                "source": "offline_cache",
-                "cloud_status": "503_upstream_unavailable",
-                "cloud_error": str(exc),
-            }
-        raise HTTPException(status_code=500, detail=str(exc))
+        fallback_groups = synthesize_fallback_groups(tsg_id=tsg_id)
+        return {
+            "success": True,
+            "count": len(fallback_groups),
+            "data": fallback_groups,
+            "fallback": True,
+            "source": "offline_cache",
+            "cloud_status": "503_upstream_unavailable",
+            "cloud_error": str(exc),
+        }
 
 
 @app.post("/api/cleanup/purge-transatel")
