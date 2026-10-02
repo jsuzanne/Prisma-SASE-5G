@@ -179,23 +179,25 @@ def load_config(config_source: Optional[Union[str, Path]] = None) -> Config:
     default_apn = json_data.get("default_apn") or json_data.get("DEFAULT_APN") or os.getenv("DEFAULT_APN") or "sasetest"
     default_ip_type = json_data.get("default_ip_type") or json_data.get("DEFAULT_IP_TYPE") or os.getenv("DEFAULT_IP_TYPE") or "IPv4"
     ue_cidr_blocks = json_data.get("ue_cidr_blocks") or json_data.get("UE_CIDR_BLOCKS") or os.getenv("PANW_UE_CIDR_BLOCKS") or os.getenv("UE_CIDR_BLOCKS") or "10.56.0.192/27,10.56.0.224/27"
-    raw_standalone = json_data.get("standalone_mode") if "standalone_mode" in json_data else (json_data.get("PANW_STANDALONE_MODE") or os.getenv("PANW_STANDALONE_MODE") or False)
-    if isinstance(raw_standalone, str):
-        standalone_mode = raw_standalone.lower() in ("true", "1", "yes", "on")
-    else:
-        standalone_mode = bool(raw_standalone)
-
-    # If PRISMA_SYNC_ENABLED=false is configured, or if credentials are empty, enable simulated Prisma SASE mode
-    raw_prisma_sync = json_data.get("PRISMA_SYNC_ENABLED") if "PRISMA_SYNC_ENABLED" in json_data else os.getenv("PRISMA_SYNC_ENABLED")
-    if raw_prisma_sync is not None:
-        if isinstance(raw_prisma_sync, str):
-            prisma_sync = raw_prisma_sync.lower() in ("true", "1", "yes", "on")
+    has_explicit_standalone = ("standalone_mode" in json_data) or ("PANW_STANDALONE_MODE" in json_data) or (os.getenv("PANW_STANDALONE_MODE") is not None)
+    if has_explicit_standalone:
+        raw_standalone = json_data.get("standalone_mode") if "standalone_mode" in json_data else (json_data.get("PANW_STANDALONE_MODE") or os.getenv("PANW_STANDALONE_MODE") or False)
+        if isinstance(raw_standalone, str):
+            standalone_mode = raw_standalone.lower() in ("true", "1", "yes", "on")
         else:
-            prisma_sync = bool(raw_prisma_sync)
-        if not prisma_sync:
+            standalone_mode = bool(raw_standalone)
+    else:
+        raw_prisma_sync = json_data.get("PRISMA_SYNC_ENABLED") if "PRISMA_SYNC_ENABLED" in json_data else os.getenv("PRISMA_SYNC_ENABLED")
+        if raw_prisma_sync is not None:
+            if isinstance(raw_prisma_sync, str):
+                prisma_sync = raw_prisma_sync.lower() in ("true", "1", "yes", "on")
+            else:
+                prisma_sync = bool(raw_prisma_sync)
+            standalone_mode = not prisma_sync
+        elif not client_id or not client_secret or not tsg_id:
             standalone_mode = True
-    elif not client_id or not client_secret or not tsg_id:
-        standalone_mode = True
+        else:
+            standalone_mode = False
 
     config = Config(
         client_id=client_id,
