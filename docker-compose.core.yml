@@ -1,9 +1,6 @@
 services:
   prisma-5g-core:
     image: jsuzanne/prisma-5g-sase:5g-orchestrator
-    build:
-      context: .
-      dockerfile: Dockerfile
     container_name: prisma-5g-core
     network_mode: host
     environment:
