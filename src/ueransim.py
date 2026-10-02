@@ -85,8 +85,8 @@ class UERANSIMClient:
         imeisv = f"{imei[:14]}01" if len(imei) >= 14 else f"{imei}01"
 
         sst = endpoint.slice.sst
-        sd_entry = f"    sd: {endpoint.slice.sd}\n" if endpoint.slice.sd else ""
-
+        sd_session = f"\n      sd: {endpoint.slice.sd}" if endpoint.slice.sd else ""
+        sd_nssai = f"\n    sd: {endpoint.slice.sd}" if endpoint.slice.sd else ""
         gnb_entries = "\n".join([f"  - {ip}" for ip in self.gnb_search_list])
 
         yaml_content = f"""# UERANSIM Config for {endpoint.device_name} ({endpoint.vertical_id})
@@ -128,12 +128,15 @@ sessions:
   - type: 'IPv4'
     apn: '{endpoint.apn}'
     slice:
-      sst: {sst}
-{sd_entry}configured-nssai:
-  - sst: {sst}
-{sd_entry}default-nssai:
-  - sst: {sst}
-{sd_entry}integrity:
+      sst: {sst}{sd_session}
+
+configured-nssai:
+  - sst: {sst}{sd_nssai}
+
+default-nssai:
+  - sst: {sst}{sd_nssai}
+
+integrity:
   IA1: true
   IA2: true
   IA3: true
@@ -186,16 +189,16 @@ integrityMaxRate:
             }
             return self._mock_processes[imsi]
 
-        # 1. Write YAML config file safely via stdin
+        # 1. Terminate any previous instance for this IMSI
+        self.stop_ue(imsi)
+
+        # 2. Write YAML config file safely via stdin
         config_path = f"{self.ueransim_dir}/config/managed/ue-{imsi}.yaml"
         self._write_file(config_path, yaml_content)
 
-        # 2. Terminate any previous instance for this IMSI
-        self.stop_ue(imsi)
-
-        # 3. Launch nr-ue in background via sudo bash
+        # 3. Launch nr-ue in background via disowned subshell
         log_path = f"/tmp/nr-ue-{imsi}.log"
-        run_cmd = f"sudo bash -c 'cd {self.ueransim_dir} && nohup ./build/nr-ue -c {config_path} > {log_path} 2>&1 &'"
+        run_cmd = f"sudo bash -c 'cd {self.ueransim_dir} && (nohup ./build/nr-ue -c {config_path} > {log_path} 2>&1 </dev/null &)'"
         self._exec_command(run_cmd)
 
         # Allow process a moment to initialize

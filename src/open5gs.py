@@ -98,12 +98,28 @@ class Open5GSClient:
     def build_subscriber_document(self, endpoint: OrchestratedEndpoint) -> Dict[str, Any]:
         """Generate Open5GS v2.8.0 MongoDB subscriber document."""
         sec_dict = endpoint.security.to_mongo_security()
-        qos_session = endpoint.qos.to_mongo_session_qos(endpoint.apn)
         
+        session_doc = {
+            "name": endpoint.apn,
+            "type": 3,  # IPv4
+            "ambr": {
+                "downlink": {"value": endpoint.qos.ambr_dl_mbps, "unit": 3},
+                "uplink": {"value": endpoint.qos.ambr_ul_mbps, "unit": 3},
+            },
+            "qos": {
+                "index": endpoint.qos.five_qi,
+                "arp": {
+                    "priority_level": 8,
+                    "pre_emption_capability": 1,
+                    "pre_emption_vulnerability": 1,
+                },
+            },
+        }
+
         slice_doc: Dict[str, Any] = {
             "sst": endpoint.slice.sst,
-            "default_indicator": endpoint.slice.default_indicator,
-            "session": [qos_session],
+            "default_indicator": True,
+            "session": [session_doc],
         }
         if endpoint.slice.sd:
             slice_doc["sd"] = endpoint.slice.sd
@@ -113,8 +129,8 @@ class Open5GSClient:
             "security": sec_dict,
             "slice": [slice_doc],
             "ambr": {
-                "downlink": {"value": max(1, endpoint.qos.ambr_dl_mbps // 100), "unit": 3},
-                "uplink": {"value": max(1, endpoint.qos.ambr_ul_mbps // 100), "unit": 3},
+                "downlink": {"value": endpoint.qos.ambr_dl_mbps, "unit": 3},
+                "uplink": {"value": endpoint.qos.ambr_ul_mbps, "unit": 3},
             },
             "schema_version": 1,
             "subscriber_status": 0,
@@ -252,7 +268,7 @@ class Open5GSClient:
             for item in items:
                 if item.get("supi") == supi_target or item.get("supi") == imsi:
                     for pdu in item.get("pdu", []):
-                        if pdu.get("pdu_state") == "active" and pdu.get("ipv4"):
+                        if pdu.get("ipv4"):
                             snssai = pdu.get("snssai", {})
                             qos_flows = pdu.get("qos_flows", [{}])
                             five_qi = qos_flows[0].get("5qi") if qos_flows else 9
@@ -266,7 +282,7 @@ class Open5GSClient:
                                 "sst": snssai.get("sst", 1),
                                 "sd": snssai.get("sd"),
                                 "5qi": five_qi,
-                                "pdu_state": "active",
+                                "pdu_state": pdu.get("pdu_state", "active"),
                             }
             time.sleep(interval_sec)
 

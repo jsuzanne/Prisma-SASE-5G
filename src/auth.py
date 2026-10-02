@@ -21,6 +21,9 @@ class PANWAuthManager:
 
     def get_access_token(self, force_refresh: bool = False) -> str:
         """Return a valid Bearer access token, refreshing if expired or forced."""
+        if self.config.standalone_mode:
+            return "panw-bearer-token-simulated-5g-sase"
+
         if self.config.auth_token:
             return self.config.auth_token
 

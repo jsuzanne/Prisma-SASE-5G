@@ -185,6 +185,18 @@ def load_config(config_source: Optional[Union[str, Path]] = None) -> Config:
     else:
         standalone_mode = bool(raw_standalone)
 
+    # If PRISMA_SYNC_ENABLED=false is configured, or if credentials are empty, enable simulated Prisma SASE mode
+    raw_prisma_sync = json_data.get("PRISMA_SYNC_ENABLED") if "PRISMA_SYNC_ENABLED" in json_data else os.getenv("PRISMA_SYNC_ENABLED")
+    if raw_prisma_sync is not None:
+        if isinstance(raw_prisma_sync, str):
+            prisma_sync = raw_prisma_sync.lower() in ("true", "1", "yes", "on")
+        else:
+            prisma_sync = bool(raw_prisma_sync)
+        if not prisma_sync:
+            standalone_mode = True
+    elif not client_id or not client_secret or not tsg_id:
+        standalone_mode = True
+
     config = Config(
         client_id=client_id,
         client_secret=client_secret,
