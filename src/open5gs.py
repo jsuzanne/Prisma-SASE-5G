@@ -212,9 +212,7 @@ class Open5GSClient:
 
         if self.mongo_db is not None:
             try:
-                doc = self.mongo_db.subscribers.find_one({"imsi": str(imsi)}, {"_id": 0})
-                if doc:
-                    return doc
+                return self.mongo_db.subscribers.find_one({"imsi": str(imsi)}, {"_id": 0})
             except Exception as e:
                 logger.warning(f"PyMongo get failed: {e}")
 
@@ -238,8 +236,7 @@ class Open5GSClient:
         if self.mongo_db is not None:
             try:
                 query = {"managed_by": "stigix-orchestrator"} if managed_only else {}
-                docs = list(self.mongo_db.subscribers.find(query, {"_id": 0}))
-                return docs
+                return list(self.mongo_db.subscribers.find(query, {"_id": 0}))
             except Exception as e:
                 logger.warning(f"PyMongo list failed: {e}")
 
@@ -284,6 +281,9 @@ class Open5GSClient:
         cmd = f"mongosh --quiet --eval '{mongo_script}'"
         self._exec_command(cmd)
         return True
+
+    # Method alias
+    add_subscriber = create_subscriber
 
     def get_smf_pdu_info(self) -> List[Dict[str, Any]]:
         """Fetch real-time active PDU sessions from Open5GS SMF."""
