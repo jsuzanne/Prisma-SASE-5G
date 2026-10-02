@@ -3322,7 +3322,7 @@
                         <span>UE IPv4 CIDR Blocks</span>
                         <span class="text-[10px] text-gray-400 font-mono">europe-west9</span>
                     </label>
-                    <input type="text" id="settings-ue-cidr" value="10.56.0.192/27,10.56.0.224/27" required placeholder="10.56.0.192/27,10.56.0.224/27" class="w-full px-3.5 py-2 bg-gray-900 border border-white/10 rounded-xl text-cyan-300 font-mono focus:border-purple-400 focus:outline-none">
+                    <input type="text" id="settings-ue-cidr" value="10.45.0.0/16" required placeholder="10.45.0.0/16" class="w-full px-3.5 py-2 bg-gray-900 border border-white/10 rounded-xl text-cyan-300 font-mono focus:border-purple-400 focus:outline-none">
                 </div>
 
                 <!-- Test Connection Status Box -->
@@ -6397,7 +6397,7 @@
 
         function updateCIDRBadges() {
             if (!cachedCidrInfo) return;
-            const cidrs = cachedCidrInfo.configured_cidrs || '10.56.0.192/27, 10.56.0.224/27';
+            const cidrs = cachedCidrInfo.configured_cidrs || '10.45.0.0/16';
             const sessionBadge = document.getElementById('session-ip-cidr-badge');
             if (sessionBadge) sessionBadge.innerText = `CIDR: ${cidrs}`;
             const addSimHelp = document.getElementById('add-sim-ip-help');
@@ -6998,7 +6998,7 @@
                 if (tabApn) tabApn.value = cfg.default_apn || 'sasetest';
                 if (tabBase) tabBase.value = cfg.api_base_url || 'https://api.sase.paloaltonetworks.com';
                 if (tabIp) tabIp.value = cfg.default_ip_type || 'IPv4';
-                if (tabCidr) tabCidr.value = cfg.ue_cidr_blocks || '10.56.0.192/27,10.56.0.224/27';
+                if (tabCidr) tabCidr.value = cfg.ue_cidr_blocks || '10.45.0.0/16';
 
                 if (tabSecretStatus) {
                     if (cfg.has_secret) {
@@ -7022,7 +7022,7 @@
                 if (mTsg) mTsg.value = cfg.tsg_id || '';
                 if (mApn) mApn.value = cfg.default_apn || 'sasetest';
                 if (mBase) mBase.value = cfg.api_base_url || 'https://api.sase.paloaltonetworks.com';
-                if (mCidr) mCidr.value = cfg.ue_cidr_blocks || '10.56.0.192/27,10.56.0.224/27';
+                if (mCidr) mCidr.value = cfg.ue_cidr_blocks || '10.45.0.0/16';
 
                 if (mSecretStatus) {
                     if (cfg.has_secret) {
