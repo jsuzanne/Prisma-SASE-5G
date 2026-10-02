@@ -250,6 +250,18 @@ class BulkProvisionModel(BaseModel):
     target_tsg_id: Optional[str] = None
 
 
+class UETrafficModel(BaseModel):
+    imsi: str
+    traffic_type: str = "allowed"  # "allowed", "ping", "threat_blocked"
+    target_url: Optional[str] = None
+
+
+class FleetActionModel(BaseModel):
+    action: str = "power_on"  # "power_on", "power_off", "clean_tuns"
+    tsg_id: Optional[str] = None
+
+
+
 # -----------------------------------------------------------------------------
 # API Endpoints: System, Operational Mode & Demo Packs
 # -----------------------------------------------------------------------------
@@ -849,7 +861,108 @@ def detach_ue_dynamic(imsi: str):
     }
 
 
+@app.post("/api/5g/ue/traffic")
+def generate_ue_traffic(payload: UETrafficModel):
+    """
+    Generate real data plane traffic through a specific 5G UE TUN interface (uesimtunX).
+    Supports:
+    - 'allowed': Real HTTP request to verify clean end-to-end routing through Prisma Access
+    - 'ping': ICMP ping to 8.8.8.8
+    - 'threat_blocked': Trigger inline Zero-Trust security threat block (WICAR/EICAR)
+    """
+    ran = get_ueransim_client()
+    res = ran.exec_ue_traffic(
+        imsi=payload.imsi,
+        traffic_type=payload.traffic_type,
+        target_url=payload.target_url,
+    )
+    return res
+
+
+@app.post("/api/5g/fleet/clean-tuns")
+def clean_orphan_tun_interfaces():
+    """Purge orphaned uesimtun network interfaces on the RAN host that have no active radio process."""
+    ran = get_ueransim_client()
+    cleaned = ran.cleanup_orphan_tuns()
+    return {
+        "success": True,
+        "cleaned_interfaces": cleaned,
+        "count": len(cleaned),
+        "message": f"Cleaned {len(cleaned)} orphan TUN interface(s) from RAN host.",
+    }
+
+
+@app.post("/api/5g/fleet/power-off")
+def fleet_power_off():
+    """Stop all active radio UEs, purge all TUN interfaces, and mark SIMs inactive."""
+    ran = get_ueransim_client()
+    ran.stop_all_ues()
+    save_active_sessions({})
+    
+    # Update local metadata to Inactive
+    meta = load_sim_metadata()
+    for imsi, item in meta.items():
+        item["status"] = "Inactive"
+    save_sim_metadata(meta)
+
+    return {
+        "success": True,
+        "message": "All 5G fleet devices powered off and network interfaces cleaned 🔴",
+    }
+
+
+@app.post("/api/5g/fleet/power-on")
+def fleet_power_on(payload: Optional[FleetActionModel] = None):
+    """
+    Simulate mass fleet bootup:
+    1. Purges any stale orphan interfaces.
+    2. Sequentially powers on registered UEs (creating unique TUNs & unique Core IPs).
+    3. Auto-registers all sessions in Prisma Access SCM.
+    """
+    ran = get_ueransim_client()
+    ran.cleanup_orphan_tuns()
+
+    client = get_current_client()
+    tsg_id = payload.tsg_id if payload else None
+    resp = client.list_tenant_ues(tsg_id=tsg_id)
+    models = resp.get("models", [])
+    
+    if not models:
+        # Check local cache
+        models = [CreateUEModel(**u) for u in synthesize_fallback_ues(tsg_id=tsg_id)]
+
+    results = []
+    # Boot up to 10 UEs
+    for m in models[:10]:
+        imsi = str(m.imsi)
+        try:
+            res = attach_ue_dynamic(imsi)
+            results.append({
+                "imsi": imsi,
+                "status": "Active",
+                "allocated_ip": res.get("allocated_ip"),
+                "interface": res.get("interface"),
+                "success": True,
+            })
+        except Exception as e:
+            results.append({
+                "imsi": imsi,
+                "status": "Error",
+                "error": str(e),
+                "success": False,
+            })
+
+    return {
+        "success": True,
+        "total_attempted": len(results),
+        "active_count": sum(1 for r in results if r.get("success")),
+        "results": results,
+        "message": f"Successfully powered on {sum(1 for r in results if r.get('success'))} fleet device(s) with unique dynamic IPs 🟢",
+    }
+
+
 @app.get("/api/5g/verticals")
+
 def get_verticals_catalog():
     """Retrieve complete 5G industry verticals catalog."""
     return {

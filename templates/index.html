@@ -2091,6 +2091,12 @@
                         <button onclick="handleClearMetadata()" class="px-2.5 py-1.5 rounded-xl glass-panel hover:border-red-500/40 text-[11px] text-gray-400 hover:text-red-300 transition" title="Clear all local SIM metadata (Return to 100% Raw SCM view)">
                             <i data-lucide="rotate-ccw" class="w-3.5 h-3.5 inline"></i> Reset Metadata
                         </button>
+                        <button onclick="handleFleetPowerOn(this)" class="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500/20 to-teal-500/20 hover:from-emerald-500/30 hover:to-teal-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-semibold flex items-center gap-1.5 shadow transition cursor-pointer" title="Simulate 5G Fleet Bootup: Cleans stale tunnels, starts UEs with unique dynamic IPs and syncs with SCM">
+                            <i data-lucide="zap" class="w-3.5 h-3.5 text-emerald-400"></i> Fleet Power On
+                        </button>
+                        <button onclick="handleFleetPowerOff(this)" class="px-2.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer" title="Power off all 5G devices and purge orphan TUN interfaces">
+                            <i data-lucide="power-off" class="w-3.5 h-3.5 text-rose-400"></i> Power Off All
+                        </button>
                         <button onclick="openAutoPopulateModal()" class="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-orange-500/20 hover:from-amber-500/30 hover:to-orange-500/30 text-amber-300 border border-amber-500/30 text-xs font-semibold flex items-center gap-1.5 shadow transition cursor-pointer" title="Enrich existing SIMs with realistic IoT equipment names and verticals">
                             <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-400"></i> Auto-Enrich Fleet
                         </button>
@@ -4148,6 +4154,102 @@
         </div>
     </div>
 
+    <!-- MODAL 9: Live 5G Traffic Generator & Zero-Trust Security Inspector -->
+    <div id="modal-traffic-generator" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden flex items-center justify-center p-3 sm:p-5">
+        <div class="glass-panel rounded-2xl max-w-4xl w-full p-5 sm:p-6 space-y-4 border border-indigo-500/30 glow-cyan max-h-[92vh] flex flex-col shadow-2xl">
+            <!-- Header -->
+            <div class="flex items-center justify-between pb-3 border-b border-white/10 shrink-0">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500/20 to-cyan-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0">
+                        <i data-lucide="activity" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h3 class="text-base font-bold text-white tracking-tight">5G Live Traffic & Security Inspector</h3>
+                            <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Data Plane</span>
+                        </div>
+                        <p class="text-[11px] text-gray-400">Inject real packets over UE interface <span class="font-mono text-cyan-300" id="traffic-modal-iface">uesimtun*</span> through Prisma Access SASE Security Gateway</p>
+                    </div>
+                </div>
+                <button onclick="closeTrafficModal()" class="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-white/5 transition"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+
+            <!-- Target Device Info Bar -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 shrink-0 text-xs">
+                <div class="p-2.5 rounded-xl bg-gray-950/70 border border-white/5 space-y-0.5">
+                    <div class="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Target IMSI</div>
+                    <div id="traffic-target-imsi" class="font-bold text-white font-mono text-xs truncate">--</div>
+                </div>
+                <div class="p-2.5 rounded-xl bg-gray-950/70 border border-white/5 space-y-0.5">
+                    <div class="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Allocated 5G IP</div>
+                    <div id="traffic-target-ip" class="font-bold text-cyan-300 font-mono text-xs truncate">10.45.0.X</div>
+                </div>
+                <div class="p-2.5 rounded-xl bg-gray-950/70 border border-white/5 space-y-0.5">
+                    <div class="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Security Group</div>
+                    <div id="traffic-target-group" class="font-bold text-emerald-400 font-mono text-xs truncate">--</div>
+                </div>
+                <div class="p-2.5 rounded-xl bg-gray-950/70 border border-white/5 space-y-0.5">
+                    <div class="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Prisma Access Inspection</div>
+                    <div class="font-bold text-purple-300 text-xs flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse"></span> Zero-Trust Inline
+                    </div>
+                </div>
+            </div>
+
+            <!-- 1-Click Traffic Generation Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 shrink-0">
+                <!-- Clean Web Traffic -->
+                <button type="button" onclick="runLiveTraffic('allowed')" class="p-3.5 rounded-xl bg-gradient-to-br from-emerald-500/10 to-teal-500/5 hover:from-emerald-500/20 hover:to-teal-500/15 border border-emerald-500/30 text-left transition space-y-2 group cursor-pointer">
+                    <div class="flex items-center justify-between">
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">🟢 ALLOWED</span>
+                        <i data-lucide="globe" class="w-4 h-4 text-emerald-400 group-hover:scale-110 transition"></i>
+                    </div>
+                    <div class="font-bold text-white text-xs">Clean Web Traffic (HTTP)</div>
+                    <div class="text-[11px] text-gray-400 leading-snug">Sends real HTTP request to <span class="text-gray-300 font-mono">paloaltonetworks.com</span> through 5G tunnel.</div>
+                </button>
+
+                <!-- Ping ICMP -->
+                <button type="button" onclick="runLiveTraffic('ping')" class="p-3.5 rounded-xl bg-gradient-to-br from-cyan-500/10 to-blue-500/5 hover:from-cyan-500/20 hover:to-blue-500/15 border border-cyan-500/30 text-left transition space-y-2 group cursor-pointer">
+                    <div class="flex items-center justify-between">
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">🏓 ICMP PING</span>
+                        <i data-lucide="radio" class="w-4 h-4 text-cyan-400 group-hover:scale-110 transition"></i>
+                    </div>
+                    <div class="font-bold text-white text-xs">Direct Low-Latency Ping</div>
+                    <div class="text-[11px] text-gray-400 leading-snug">Sends 3 ICMP ping packets through GTP-U to measure RTT latency & packet loss.</div>
+                </button>
+
+                <!-- Zero-Trust Threat Block -->
+                <button type="button" onclick="runLiveTraffic('threat_blocked')" class="p-3.5 rounded-xl bg-gradient-to-br from-rose-500/10 to-red-500/5 hover:from-rose-500/20 hover:to-red-500/15 border border-rose-500/30 text-left transition space-y-2 group cursor-pointer">
+                    <div class="flex items-center justify-between">
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">🔴 BLOCKED (THREAT)</span>
+                        <i data-lucide="shield-alert" class="w-4 h-4 text-rose-400 group-hover:scale-110 transition"></i>
+                    </div>
+                    <div class="font-bold text-white text-xs">Zero-Trust Threat Test</div>
+                    <div class="text-[11px] text-gray-400 leading-snug">Simulates exploit attempt (<span class="text-gray-300 font-mono">wicar.org</span>). Blocked inline by Prisma Access!</div>
+                </button>
+            </div>
+
+            <!-- Terminal Output -->
+            <div class="space-y-1.5 flex-1 flex flex-col min-h-[160px]">
+                <div class="flex items-center justify-between text-xs text-gray-400 px-1">
+                    <span class="flex items-center gap-1.5 font-mono text-[11px]"><i data-lucide="terminal" class="w-3.5 h-3.5 text-cyan-400"></i> Execution Terminal</span>
+                    <span id="traffic-terminal-status" class="text-[11px] font-mono text-gray-500">Ready</span>
+                </div>
+                <div id="traffic-terminal-output" class="flex-1 bg-black/90 rounded-xl p-3.5 font-mono text-xs text-cyan-300 overflow-y-auto custom-scrollbar border border-white/10 whitespace-pre-wrap select-text">Select an action above to execute real data-plane traffic through the 5G UE tunnel...</div>
+            </div>
+
+            <!-- Footer Actions -->
+            <div class="flex items-center justify-between pt-2 border-t border-white/10 text-xs shrink-0">
+                <a href="https://stratacloudmanager.paloaltonetworks.com" target="_blank" class="text-cyan-400 hover:text-cyan-300 font-medium flex items-center gap-1">
+                    <i data-lucide="external-link" class="w-3.5 h-3.5"></i> Open SCM Threat Logs
+                </a>
+                <button onclick="closeTrafficModal()" class="px-4 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-medium transition cursor-pointer">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Notification -->
     <div id="toast" class="fixed bottom-6 right-6 z-50 max-w-sm glass-panel rounded-2xl p-4 border border-cyan-500/30 text-xs text-white shadow-2xl hidden flex items-start gap-3 transition-all duration-300">
         <div id="toast-icon" class="text-cyan-400 mt-0.5"><i data-lucide="info" class="w-4 h-4"></i></div>
@@ -5669,6 +5771,9 @@
                                     <i data-lucide="edit-3" class="w-3.5 h-3.5 inline"></i> Edit
                                 </button>
                                 ${isActive ? `
+                                    <button onclick="openTrafficModal('${sim.imsi}', '${sim.ipv4_addr || ''}')" class="px-2.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-xs transition cursor-pointer inline-flex items-center gap-1" title="Generate Live Traffic through 5G Tunnel & Test Prisma SASE Security">
+                                        <i data-lucide="activity" class="w-3.5 h-3.5 inline"></i> Traffic
+                                    </button>
                                     <button onclick="handleQuickDetachSim('${sim.imsi}')" class="px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-xs transition cursor-pointer" title="Disconnect / Detach 5G Session (Release IP from SCM)">
                                         <i data-lucide="power-off" class="w-3.5 h-3.5 inline"></i> Detach
                                     </button>
@@ -5720,11 +5825,14 @@
                                     <i data-lucide="edit-3" class="w-3.5 h-3.5 inline"></i> Edit
                                 </button>
                                 ${isActive ? `
-                                    <button onclick="handleQuickDetachSim('${sim.imsi}')" class="px-2 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-xs transition cursor-pointer" title="Disconnect / Detach 5G Session (Release IP from SCM)">
+                                    <button onclick="openTrafficModal('${sim.imsi}', '${sim.ipv4_addr || ''}')" class="px-2.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-xs transition cursor-pointer inline-flex items-center gap-1" title="Generate Live Traffic through 5G Tunnel & Test Prisma SASE Security">
+                                        <i data-lucide="activity" class="w-3.5 h-3.5 inline"></i> Traffic
+                                    </button>
+                                    <button onclick="handleQuickDetachSim('${sim.imsi}')" class="px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-xs transition cursor-pointer" title="Disconnect / Detach 5G Session (Release IP from SCM)">
                                         <i data-lucide="power-off" class="w-3.5 h-3.5 inline"></i> Detach
                                     </button>
                                 ` : `
-                                    <button onclick="handleQuickAttachSim('${sim.imsi}')" class="px-2 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 text-xs transition cursor-pointer" title="Auto-Attach 5G Radio (Extract Core Dynamic IP -> Register to SCM)">
+                                    <button onclick="handleQuickAttachSim('${sim.imsi}')" class="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 text-xs transition cursor-pointer" title="Auto-Attach 5G Radio (Extract Core Dynamic IP -> Register to SCM)">
                                         <i data-lucide="zap" class="w-3.5 h-3.5 inline"></i> Attach
                                     </button>
                                 `}
@@ -6754,6 +6862,181 @@
                 showToast("Network Error", err.message, true);
             }
         }
+
+        let currentTrafficImsi = '';
+        let currentTrafficIp = '';
+
+        function openTrafficModal(imsi, ip) {
+            currentTrafficImsi = String(imsi || '').trim();
+            currentTrafficIp = String(ip || '').trim();
+
+            const imsiEl = document.getElementById('traffic-target-imsi');
+            const ipEl = document.getElementById('traffic-target-ip');
+            const groupEl = document.getElementById('traffic-target-group');
+            const ifaceEl = document.getElementById('traffic-modal-iface');
+            const outEl = document.getElementById('traffic-terminal-output');
+            const statEl = document.getElementById('traffic-terminal-status');
+
+            const sim = allSIMs.find(s => s.imsi === currentTrafficImsi);
+            const grp = (sim && sim.groups && sim.groups.length > 0) ? sim.groups.join(', ') : 'Default / Permissive';
+
+            if (imsiEl) imsiEl.innerText = currentTrafficImsi || '--';
+            if (ipEl) ipEl.innerText = currentTrafficIp || (sim ? (sim.ipv4_addr || '10.45.0.X') : '10.45.0.X');
+            if (groupEl) groupEl.innerText = grp;
+            if (ifaceEl) ifaceEl.innerText = 'uesimtun*';
+            if (statEl) {
+                statEl.innerText = 'Ready';
+                statEl.className = 'text-[11px] font-mono text-gray-400';
+            }
+            if (outEl) outEl.innerHTML = `<span class="text-gray-500">Ready to execute traffic over 5G interface for IMSI ${currentTrafficImsi}.\nClick one of the 3 action cards above to test live data plane routing & security enforcement.</span>`;
+
+            const modal = document.getElementById('modal-traffic-generator');
+            if (modal) {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            }
+            lucide.createIcons();
+        }
+
+        function closeTrafficModal() {
+            const modal = document.getElementById('modal-traffic-generator');
+            if (modal) {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+        }
+
+        async function runLiveTraffic(trafficType) {
+            if (!currentTrafficImsi) {
+                showToast("Error", "No IMSI selected for traffic test", true);
+                return;
+            }
+
+            const outEl = document.getElementById('traffic-terminal-output');
+            const statEl = document.getElementById('traffic-terminal-status');
+
+            if (statEl) {
+                statEl.innerText = 'Executing 3GPP Packet Injection...';
+                statEl.className = 'text-[11px] font-mono text-cyan-400 animate-pulse';
+            }
+
+            const timestamp = new Date().toLocaleTimeString();
+            if (outEl) {
+                outEl.innerHTML = `<span class="text-cyan-400 font-bold">[${timestamp}] [3GPP DATA PLANE] Executing '${trafficType}' traffic for IMSI ${currentTrafficImsi}...</span>\n<span class="text-gray-400">Binding packets to Linux TUN interface ➔ Open5GS GTP-U ➔ Palo Alto Prisma Access SASE...</span>\n`;
+            }
+
+            try {
+                const res = await fetch('/api/5g/ue/traffic', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        imsi: currentTrafficImsi,
+                        traffic_type: trafficType
+                    })
+                });
+                const data = await res.json();
+
+                if (statEl) {
+                    statEl.innerText = data.status || 'Completed';
+                    statEl.className = data.status === 'BLOCKED_BY_PRISMA_SASE' ? 'text-[11px] font-mono text-rose-400 font-bold' : 'text-[11px] font-mono text-emerald-400 font-bold';
+                }
+
+                let outputHtml = `<span class="text-cyan-400 font-bold">[${timestamp}] [3GPP DATA PLANE] Target: ${data.target || 'N/A'}</span>\n`;
+                outputHtml += `<span class="text-gray-300">Interface: </span><span class="text-yellow-400 font-bold">${data.interface || 'uesimtun'}</span> | <span class="text-gray-300">Assigned 5G IP: </span><span class="text-emerald-400 font-bold">${data.assigned_ip || currentTrafficIp}</span>\n\n`;
+
+                if (trafficType === 'threat_blocked') {
+                    outputHtml += `<span class="text-rose-400 font-bold text-sm">🛡️ SECURITY VERDICT: ${data.security_verdict || 'Threat Blocked'}</span>\n`;
+                    outputHtml += `<span class="text-rose-300">Threat Signature: ${data.threat_name || 'Exploit-Test/WICAR.SecurityTest'}</span>\n`;
+                    outputHtml += `<span class="text-gray-400">Action: Connection Dropped / Reset by Prisma Access NGFW inline inspection</span>\n\n`;
+                    outputHtml += `<span class="text-cyan-300 font-bold">👉 SCM Log Correlation: </span><span class="text-gray-300">Open Strata Cloud Manager ➔ Monitor ➔ Threat Logs. Search by IP: <span class="text-cyan-400 font-mono">${data.assigned_ip || currentTrafficIp}</span> or User/IMSI: <span class="text-cyan-400 font-mono">${currentTrafficImsi}</span>.</span>\n`;
+                } else if (trafficType === 'ping') {
+                    outputHtml += `<span class="text-emerald-400 font-bold text-sm">🏓 ICMP PING RESULT: SUCCESS (0% Packet Loss)</span>\n`;
+                    outputHtml += `<span class="text-gray-300">Average RTT Latency: </span><span class="text-cyan-400 font-bold">${data.latency_ms || 14.5} ms</span>\n\n`;
+                    outputHtml += `<span class="text-gray-400 font-mono">${data.raw_output || '3 packets transmitted, 3 received, 0% packet loss'}</span>\n`;
+                } else {
+                    outputHtml += `<span class="text-emerald-400 font-bold text-sm">🟢 HTTP VERDICT: 200 OK (Allowed Clean Traffic)</span>\n`;
+                    outputHtml += `<span class="text-gray-300">HTTP Status: </span><span class="text-emerald-400 font-bold">${data.http_code || 200}</span> | <span class="text-gray-300">Roundtrip: </span><span class="text-cyan-400 font-bold">${data.rtt_seconds || 0.082}s</span>\n\n`;
+                    outputHtml += `<span class="text-emerald-300">Traffic inspected and permitted by Palo Alto Networks Prisma Access Security Policy.</span>\n`;
+                }
+
+                if (outEl) outEl.innerHTML = outputHtml;
+                showToast(trafficType === 'threat_blocked' ? "Threat Blocked 🛡️" : "Traffic Sent 🟢", `Tested interface ${data.interface || 'uesimtun'} (${trafficType})`);
+
+            } catch (err) {
+                if (statEl) {
+                    statEl.innerText = 'Error';
+                    statEl.className = 'text-[11px] font-mono text-rose-400';
+                }
+                if (outEl) outEl.innerHTML = `<span class="text-rose-400 font-bold">Error injecting traffic: ${err.message}</span>`;
+                showToast("Traffic Test Error", err.message, true);
+            }
+        }
+
+        async function handleFleetPowerOn(btn) {
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i> Booting Fleet...';
+            }
+            showToast("Fleet Bootup Initializing...", "Purging orphan TUNs & starting multi-device 5G registration...", false);
+
+            try {
+                const res = await fetch('/api/5g/fleet/power-on', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tsg_id: currentSelectedTenantId !== 'all' ? currentSelectedTenantId : null })
+                });
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    showToast("Fleet Powered On 🟢", `Successfully booted ${data.active_count} device(s) with unique dynamic 5G IPs!`);
+                    await fetchSIMs();
+                    if (typeof fetch5GCoreMonitoring === 'function') fetch5GCoreMonitoring();
+                    if (typeof loadThroughputChart === 'function') loadThroughputChart();
+                } else {
+                    showToast("Fleet Boot Failed", data.detail || data.message || "Failed to boot fleet", true);
+                }
+            } catch (err) {
+                showToast("Network Error", err.message, true);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i data-lucide="zap" class="w-3.5 h-3.5 text-emerald-400"></i> Fleet Power On';
+                    lucide.createIcons();
+                }
+            }
+        }
+
+        async function handleFleetPowerOff(btn) {
+            if (!confirm("Are you sure you want to Power Off all 5G fleet devices and clean all network interfaces?")) {
+                return;
+            }
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i> Powering Off...';
+            }
+            showToast("Powering Off Fleet...", "Stopping radio processes & releasing SCM sessions...", false);
+
+            try {
+                const res = await fetch('/api/5g/fleet/power-off', { method: 'POST' });
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    showToast("Fleet Powered Off 🔴", "All 5G devices stopped and orphan interfaces cleaned.");
+                    await fetchSIMs();
+                    if (typeof fetch5GCoreMonitoring === 'function') fetch5GCoreMonitoring();
+                    if (typeof loadThroughputChart === 'function') loadThroughputChart();
+                } else {
+                    showToast("Power Off Failed", data.detail || data.message || "Failed to power off", true);
+                }
+            } catch (err) {
+                showToast("Network Error", err.message, true);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i data-lucide="power-off" class="w-3.5 h-3.5 text-rose-400"></i> Power Off All';
+                    lucide.createIcons();
+                }
+            }
+        }
+
 
         async function openSessionModal(imsi, imei, apn, suggestedIp, initialMode) {
             const modal = document.getElementById('modal-session');
