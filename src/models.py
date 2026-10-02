@@ -153,3 +153,130 @@ class UserGroup:
             user_count=count,
             identity_ids=identities if isinstance(identities, list) else [],
         )
+
+
+@dataclass
+class SliceConfig:
+    """Represents a 5G Network Slice (S-NSSAI: SST + SD)."""
+    sst: int = 1
+    sd: Optional[str] = None
+    default_indicator: bool = True
+
+    def to_dict(self) -> Dict[str, Any]:
+        d: Dict[str, Any] = {"sst": self.sst, "default_indicator": self.default_indicator}
+        if self.sd:
+            d["sd"] = self.sd
+        return d
+
+
+@dataclass
+class QoSConfig:
+    """Represents 5G QoS parameters (5QI, AMBR)."""
+    five_qi: int = 9
+    ambr_dl_mbps: int = 100
+    ambr_ul_mbps: int = 50
+    arp_priority: int = 8
+    arp_preempt_cap: int = 1
+    arp_preempt_vuln: int = 1
+
+    def to_mongo_session_qos(self, dnn: str = "internet") -> Dict[str, Any]:
+        """Convert to Open5GS MongoDB session QoS structure."""
+        return {
+            "name": dnn,
+            "type": 3,  # IPv4
+            "ambr": {
+                "downlink": {"value": self.ambr_dl_mbps, "unit": 3},  # Unit 3 = Mbps
+                "uplink": {"value": self.ambr_ul_mbps, "unit": 3},
+            },
+            "qos": {
+                "index": self.five_qi,
+                "arp": {
+                    "priority_level": self.arp_priority,
+                    "pre_emption_capability": self.arp_preempt_cap,
+                    "pre_emption_vulnerability": self.arp_preempt_vuln,
+                },
+            },
+        }
+
+
+@dataclass
+class SecurityConfig:
+    """Represents 5G SIM cryptographic credentials."""
+    k: str
+    op: str
+    op_type: str = "OPC"  # OP or OPC
+    amf: str = "8000"
+    sqn: int = 0
+
+    def to_mongo_security(self) -> Dict[str, Any]:
+        """Convert to Open5GS MongoDB security subdocument."""
+        sec = {
+            "k": self.k.upper(),
+            "amf": self.amf,
+            "op_type": self.op_type.upper(),
+            "sqn": self.sqn,
+        }
+        if self.op_type.upper() == "OP":
+            sec["op"] = self.op.upper()
+        else:
+            sec["opc"] = self.op.upper()
+        return sec
+
+
+@dataclass
+class OrchestratedEndpoint:
+    """Full lifecycle state of a 5G endpoint across Core, RAN, Prisma, and Traffic."""
+    imsi: str
+    imei: str
+    apn: str
+    vertical_id: str
+    device_name: str
+    vendor: str
+    device_model: str
+    icon: str
+    security: SecurityConfig
+    slice: SliceConfig
+    qos: QoSConfig
+    state: str = "pending"  # pending, core_ok, ran_ok, identity_ok, session_active, registered, failed, deleting
+    ipv4_addr: Optional[str] = None
+    ipv6_addr: Optional[str] = None
+    tun_interface: Optional[str] = None
+    psi: Optional[int] = None
+    pid: Optional[int] = None
+    prisma_group: Optional[str] = None
+    prisma_identity_id: Optional[str] = None
+    traffic_active: bool = False
+    last_error: Optional[str] = None
+    created_at: int = field(default_factory=lambda: int(time.time()))
+    updated_at: int = field(default_factory=lambda: int(time.time()))
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize for API response (hiding secret K/OPc)."""
+        return {
+            "imsi": self.imsi,
+            "imei": self.imei,
+            "apn": self.apn,
+            "vertical_id": self.vertical_id,
+            "device_name": self.device_name,
+            "vendor": self.vendor,
+            "device_model": self.device_model,
+            "icon": self.icon,
+            "slice": self.slice.to_dict(),
+            "qos": {
+                "5qi": self.qos.five_qi,
+                "ambr_dl_mbps": self.qos.ambr_dl_mbps,
+                "ambr_ul_mbps": self.qos.ambr_ul_mbps,
+            },
+            "state": self.state,
+            "ipv4_addr": self.ipv4_addr,
+            "ipv6_addr": self.ipv6_addr,
+            "tun_interface": self.tun_interface,
+            "psi": self.psi,
+            "prisma_group": self.prisma_group,
+            "prisma_identity_id": self.prisma_identity_id,
+            "traffic_active": self.traffic_active,
+            "last_error": self.last_error,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+        }
+
