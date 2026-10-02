@@ -51,26 +51,33 @@ class UERANSIMClient:
         if self.mock_mode:
             return ""
 
-        # Local execution on UERANSIM VM
-        if os.environ.get("ROLE") in ("ue-agent", "all") or not self.ssh_host:
-            res = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-            if res.returncode != 0 and "pkill" not in cmd:
-                logger.error(f"Local command failed: {res.stderr.strip()}")
-            return res.stdout.strip()
+        try:
+            # Local execution on UERANSIM VM
+            if os.environ.get("ROLE") in ("ue-agent", "all") or not self.ssh_host:
+                res = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+                if res.returncode != 0 and "pkill" not in cmd:
+                    logger.warning(f"Local command failed: {res.stderr.strip()}")
+                return res.stdout.strip()
 
-        # Remote execution over SSH
-        ssh_cmd = [
-            "ssh",
-            "-o", "BatchMode=yes",
-            "-o", "ConnectTimeout=5",
-            "-o", "StrictHostKeyChecking=accept-new",
-            self.ssh_host,
-            cmd,
-        ]
-        res = subprocess.run(ssh_cmd, capture_output=True, text=True)
-        if res.returncode != 0 and "pkill" not in cmd:
-            logger.error(f"SSH command failed on {self.ssh_host}: {res.stderr.strip()}")
-        return res.stdout.strip()
+            # Remote execution over SSH
+            ssh_cmd = [
+                "ssh",
+                "-o", "BatchMode=yes",
+                "-o", "ConnectTimeout=5",
+                "-o", "StrictHostKeyChecking=accept-new",
+                self.ssh_host,
+                cmd,
+            ]
+            res = subprocess.run(ssh_cmd, capture_output=True, text=True)
+            if res.returncode != 0 and "pkill" not in cmd:
+                logger.warning(f"SSH command failed on {self.ssh_host}: {res.stderr.strip()}")
+            return res.stdout.strip()
+        except FileNotFoundError:
+            logger.warning(f"SSH or shell utility not found when attempting command: {cmd}")
+            return ""
+        except Exception as e:
+            logger.warning(f"Command execution exception ({cmd}): {e}")
+            return ""
 
     def generate_ue_yaml(self, endpoint: OrchestratedEndpoint) -> str:
         """Generate UERANSIM YAML configuration for an endpoint."""

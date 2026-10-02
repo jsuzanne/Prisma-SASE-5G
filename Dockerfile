@@ -12,6 +12,9 @@ WORKDIR /app
 # Install system dependencies if required
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    openssh-client \
+    iproute2 \
+    iputils-ping \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install

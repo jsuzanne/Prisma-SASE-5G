@@ -19,4 +19,5 @@ services:
     volumes:
       - ./config:/app/config
       - ./data:/app/data
+      - ~/.ssh:/root/.ssh:ro
     restart: unless-stopped
