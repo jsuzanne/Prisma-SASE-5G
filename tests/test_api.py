@@ -116,7 +116,7 @@ class TestAppEndpoints(unittest.TestCase):
             "imei": "860123999999999",
             "apn": "sasetest",
             "ip_type": "IPv4",
-            "ipv4_addr": "10.56.0.195",
+            "ipv4_addr": "10.45.0.17",
         }
         response = client.post("/api/sessions/register", json=payload)
         self.assertEqual(response.status_code, 200)
@@ -299,8 +299,8 @@ class TestAppEndpoints(unittest.TestCase):
         self.assertTrue(data["total_allocatable"] > 0)
 
     def test_cidr_validate_endpoint(self):
-        # Valid IP in default 10.56.0.192/27
-        resp_valid = client.get("/api/cidr/validate?ip=10.56.0.195")
+        # Valid IP in default 10.45.0.0/16
+        resp_valid = client.get("/api/cidr/validate?ip=10.45.0.17")
         self.assertEqual(resp_valid.status_code, 200)
         self.assertTrue(resp_valid.json()["is_valid"])
 

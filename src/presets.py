@@ -205,7 +205,7 @@ def generate_fleet_devices(
                 "icon": v_data["icon"],
                 "custom_label": None,
                 "suggested_group": v_data["suggested_group"],
-                "session_ip": f"10.56.0.{start_ip_suffix + i}",
+                "session_ip": f"10.45.0.{start_ip_suffix + i}",
             })
     else:
         v_data = VERTICALS_CATALOG.get(vertical_id)
@@ -228,7 +228,7 @@ def generate_fleet_devices(
                 "icon": v_data["icon"],
                 "custom_label": None,
                 "suggested_group": v_data["suggested_group"],
-                "session_ip": f"10.56.0.{start_ip_suffix + i}",
+                "session_ip": f"10.45.0.{start_ip_suffix + i}",
             })
     return devices
 
