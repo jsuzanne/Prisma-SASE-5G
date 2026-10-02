@@ -6364,12 +6364,27 @@
 
         // Add SIM Modal Functions
         async function openAddSimModal() {
-            generateRandomIMSI();
-            updateSimModalsGroupDropdowns();
-            const v = document.getElementById('add-sim-vertical').value;
-            updateDeviceTypeSelect('add-sim-device-type', v);
-            await autoFillNextAddSimIP();
-            document.getElementById('modal-add-sim').classList.remove('hidden');
+            const modal = document.getElementById('modal-add-sim');
+            if (modal) {
+                modal.classList.remove('hidden');
+            }
+            try {
+                generateRandomIMSI();
+                updateSimModalsGroupDropdowns();
+                const vEl = document.getElementById('add-sim-vertical');
+                if (vEl) {
+                    updateDeviceTypeSelect('add-sim-device-type', vEl.value);
+                }
+                const tsgSelect = document.getElementById('add-sim-tsg');
+                if (tsgSelect && (!tsgSelect.options || tsgSelect.options.length === 0)) {
+                    tsgSelect.innerHTML = (allTenants && allTenants.length > 0)
+                        ? allTenants.map(t => `<option value="${t.id}">${t.display_name} (${t.id})</option>`).join('')
+                        : `<option value="1291887562">Transatel demo (1291887562)</option>`;
+                }
+                await autoFillNextAddSimIP();
+            } catch (err) {
+                console.warn("Non-fatal modal init warning:", err);
+            }
             lucide.createIcons();
         }
 
