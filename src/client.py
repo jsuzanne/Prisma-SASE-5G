@@ -532,6 +532,7 @@ class Prisma5GClient:
             if resp.status_code == 204 or not resp.text or not resp.text.strip():
                 return []
             if resp.status_code not in (200, 201):
+                logger.debug("list_user_groups query for TSG %s returned HTTP %s: %s", tid, resp.status_code, resp.text)
                 return []
 
             try:
@@ -539,12 +540,13 @@ class Prisma5GClient:
                 items = data.get("data", []) if isinstance(data, dict) else (data if isinstance(data, list) else [])
                 res_models = []
                 for item in items:
-                    m = UserGroup.from_api_response(item)
+                    m = UserGroup.from_api_dict(item)
                     if tenant_name:
                         m.tenant_name = tenant_name
                     res_models.append(m)
                 return res_models
-            except Exception:
+            except Exception as e:
+                logger.error("Error parsing userGroup response for TSG %s: %s", tid, e)
                 return []
 
         if tsg_id:
@@ -553,13 +555,17 @@ class Prisma5GClient:
 
         tenants = self.list_tenants(target_tsg)
         all_models = []
+        queried_tsgs = set()
         if tenants:
             for t in tenants:
                 tid = str(t.get("id"))
-                tname = t.get("display_name", tid)
-                all_models.extend(_query_group_for_tsg(tid, tenant_name=tname))
-        else:
-            all_models = _query_group_for_tsg(target_tsg)
+                if tid not in queried_tsgs:
+                    queried_tsgs.add(tid)
+                    tname = t.get("display_name", tid)
+                    all_models.extend(_query_group_for_tsg(tid, tenant_name=tname))
+        
+        if target_tsg not in queried_tsgs:
+            all_models.extend(_query_group_for_tsg(target_tsg))
 
         return {"models": all_models}
 
@@ -595,12 +601,16 @@ class Prisma5GClient:
         # Strata Cloud Manager requires at least 1 identity ID in the list.
         if not final_identities:
             try:
-                available_ues = self.list_tenant_ues(tsg_id=target_tsg)
-                if available_ues:
-                    final_identities = [available_ues[0].id]
-                    logger.info("Auto-assigned first available SIM %s to group '%s'", available_ues[0].imsi, group_name)
+                ue_resp = self.list_tenant_ues(tsg_id=target_tsg)
+                models = ue_resp.get("models", []) if isinstance(ue_resp, dict) else (ue_resp if isinstance(ue_resp, list) else [])
+                for ue in models:
+                    ident = getattr(ue, "identity_id", None) or getattr(ue, "id", None)
+                    if ident:
+                        final_identities.append(str(ident))
+                        logger.info("Auto-assigned first available SIM %s (%s) to group '%s'", getattr(ue, "imsi", ""), ident, group_name)
+                        break
             except Exception as exc:
-                logger.debug("Could not auto-fetch SIMs for TSG %s: %s", target_tsg, exc)
+                logger.warning("Could not auto-fetch SIMs for TSG %s: %s", target_tsg, exc)
 
         if not final_identities:
             raise ValueError(

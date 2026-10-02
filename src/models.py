@@ -141,18 +141,24 @@ class UserGroup:
 
     @classmethod
     def from_api_dict(cls, data: Dict[str, Any]) -> "UserGroup":
-        identities = data.get("identity_id") or data.get("identityIds") or []
-        count = data.get("user_count")
+        if not isinstance(data, dict):
+            return cls()
+        identities = data.get("identity_id") or data.get("identityIds") or data.get("identity_ids") or []
+        count = data.get("user_count") or data.get("userCount")
         if count is None and isinstance(identities, list):
             count = len(identities)
         return cls(
-            group_id=data.get("id") or data.get("group_id"),
-            name=data.get("name") or data.get("group_name"),
+            group_id=str(data.get("id") or data.get("group_id") or data.get("groupId") or ""),
+            name=str(data.get("name") or data.get("group_name") or data.get("groupName") or ""),
             description=data.get("description"),
-            tsg_id=data.get("tsg_id"),
+            tsg_id=str(data.get("tsg_id") or data.get("tsgId") or "") if (data.get("tsg_id") or data.get("tsgId")) else None,
             user_count=count,
             identity_ids=identities if isinstance(identities, list) else [],
         )
+
+    @classmethod
+    def from_api_response(cls, data: Dict[str, Any]) -> "UserGroup":
+        return cls.from_api_dict(data)
 
 
 @dataclass

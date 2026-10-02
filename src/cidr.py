@@ -4,7 +4,7 @@ import ipaddress
 from typing import List, Set, Optional, Dict, Any
 
 
-DEFAULT_UE_CIDR_BLOCKS = "10.56.0.192/27,10.56.0.224/27"
+DEFAULT_UE_CIDR_BLOCKS = "10.45.0.0/16"
 
 
 def parse_cidr_blocks(cidr_str: Optional[str]) -> List[ipaddress.IPv4Network]:
@@ -61,7 +61,7 @@ def get_allocatable_ips(cidr_str: Optional[str] = None, limit: int = 200) -> Lis
 def get_next_available_ip(
     cidr_str: Optional[str] = None,
     used_ips: Optional[Set[str]] = None,
-    preferred_fallback: str = "10.56.0.195"
+    preferred_fallback: str = "10.45.0.2"
 ) -> str:
     """Find the first unassigned IP within the configured CIDR blocks."""
     used = set(used_ips or set())

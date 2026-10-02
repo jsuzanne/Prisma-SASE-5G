@@ -317,6 +317,19 @@ integrityMaxRate:
                 if ip_match:
                     assigned_ip = ip_match.group(1)
 
+        if not assigned_ip and (running or pdu_status == "PS-ACTIVE"):
+            # Inspect system uesimtun interfaces on RAN host
+            ip_cmd = "ip -4 -o addr show | grep 'uesimtun' || true"
+            ip_out = self._exec_command(ip_cmd)
+            if ip_out:
+                ip_match = re.search(r"inet\s+([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)", ip_out)
+                if ip_match:
+                    assigned_ip = ip_match.group(1)
+                    if not interface_name:
+                        iface_m = re.search(r"(uesimtun\d+)", ip_out)
+                        if iface_m:
+                            interface_name = iface_m.group(1)
+
         return {
             "imsi": clean_imsi,
             "running": running,

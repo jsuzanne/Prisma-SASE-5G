@@ -58,7 +58,7 @@ class Config:
     auth_url: str = "https://auth.apps.paloaltonetworks.com/am/oauth2/access_token"
     default_apn: str = "sasetest"
     default_ip_type: str = "IPv4"
-    ue_cidr_blocks: str = "10.56.0.192/27,10.56.0.224/27"
+    ue_cidr_blocks: str = "10.45.0.0/16"
     standalone_mode: bool = False  # False = Live SCM Cloud API (default), True = Standalone Demo Sandbox
 
     def validate(self) -> None:
@@ -108,7 +108,7 @@ class Config:
             auth_url=data.get("auth_url") or data.get("PANW_AUTH_URL") or data.get("authUrl") or "https://auth.apps.paloaltonetworks.com/am/oauth2/access_token",
             default_apn=data.get("default_apn") or data.get("DEFAULT_APN") or data.get("defaultApn") or "sasetest",
             default_ip_type=data.get("default_ip_type") or data.get("DEFAULT_IP_TYPE") or data.get("defaultIpType") or "IPv4",
-            ue_cidr_blocks=data.get("ue_cidr_blocks") or data.get("PANW_UE_CIDR_BLOCKS") or data.get("UE_CIDR_BLOCKS") or data.get("ueCidrBlocks") or "10.56.0.192/27,10.56.0.224/27",
+            ue_cidr_blocks=data.get("ue_cidr_blocks") or data.get("PANW_UE_CIDR_BLOCKS") or data.get("UE_CIDR_BLOCKS") or data.get("ueCidrBlocks") or "10.45.0.0/16",
             standalone_mode=standalone_val,
         )
 
@@ -178,7 +178,7 @@ def load_config(config_source: Optional[Union[str, Path]] = None) -> Config:
     auth_url = json_data.get("auth_url") or json_data.get("PANW_AUTH_URL") or os.getenv("PANW_AUTH_URL") or "https://auth.apps.paloaltonetworks.com/am/oauth2/access_token"
     default_apn = json_data.get("default_apn") or json_data.get("DEFAULT_APN") or os.getenv("DEFAULT_APN") or "sasetest"
     default_ip_type = json_data.get("default_ip_type") or json_data.get("DEFAULT_IP_TYPE") or os.getenv("DEFAULT_IP_TYPE") or "IPv4"
-    ue_cidr_blocks = json_data.get("ue_cidr_blocks") or json_data.get("UE_CIDR_BLOCKS") or os.getenv("PANW_UE_CIDR_BLOCKS") or os.getenv("UE_CIDR_BLOCKS") or "10.56.0.192/27,10.56.0.224/27"
+    ue_cidr_blocks = json_data.get("ue_cidr_blocks") or json_data.get("UE_CIDR_BLOCKS") or os.getenv("PANW_UE_CIDR_BLOCKS") or os.getenv("UE_CIDR_BLOCKS") or "10.45.0.0/16"
     has_explicit_standalone = ("standalone_mode" in json_data) or ("PANW_STANDALONE_MODE" in json_data) or (os.getenv("PANW_STANDALONE_MODE") is not None)
     if has_explicit_standalone:
         raw_standalone = json_data.get("standalone_mode") if "standalone_mode" in json_data else (json_data.get("PANW_STANDALONE_MODE") or os.getenv("PANW_STANDALONE_MODE") or False)
@@ -243,7 +243,7 @@ def save_config(
         "auth_url": cfg_dict.get("auth_url") or "https://auth.apps.paloaltonetworks.com/am/oauth2/access_token",
         "default_apn": cfg_dict.get("default_apn") or "sasetest",
         "default_ip_type": cfg_dict.get("default_ip_type") or "IPv4",
-        "ue_cidr_blocks": cfg_dict.get("ue_cidr_blocks") or "10.56.0.192/27,10.56.0.224/27",
+        "ue_cidr_blocks": cfg_dict.get("ue_cidr_blocks") or "10.45.0.0/16",
         "standalone_mode": bool(cfg_dict.get("standalone_mode", False)),
     }
     json_path.write_text(json.dumps(cleaned_json, indent=2), encoding="utf-8")
