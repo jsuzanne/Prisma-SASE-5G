@@ -404,21 +404,41 @@ integrityMaxRate:
             ok = bool(received and int(received.group(1)) > 0)
             return base | {"status": "SUCCESS" if ok else "FAILED",
                            "latency_ms": float(rtt.group(2)) if rtt else None,
-                           "packet_loss": f"{loss.group(1)}%" if loss else None}
+                           "packet_loss": f"{loss.group(1)}%" if loss else ("0%" if ok else "100%")}
         code_m = re.search(r"HTTP_CODE:(\d+)", out)
         time_m = re.search(r"TIME_TOTAL:([0-9.]+)", out)
         code = int(code_m.group(1)) if code_m else 0
         rtt = float(time_m.group(1)) if time_m else None
+        lowered = out.lower()
+        is_unreachable = any(s in lowered for s in ("could not resolve", "name or service not known", "network is unreachable", "no route to host", "network down", "timed out", "timeout"))
+
         if kind == "threat_blocked":
-            blocked = code in (0, 403) or "reset" in out.lower()
-            return base | {"status": "BLOCKED_BY_PRISMA_SASE" if blocked else "RECEIVED",
+            is_reset_or_drop = any(s in lowered for s in ("connection reset", "connection closed", "empty reply from server", "reset by peer", "recv failure")) or code in (403, 400, 503)
+            if is_unreachable and not is_reset_or_drop and code == 0:
+                status = "UNREACHABLE"
+                verdict = "Data Plane / Gateway Unreachable (Check 5G Routing / UPF Uplink)"
+            elif is_reset_or_drop or code in (0, 403):
+                status = "BLOCKED_BY_PRISMA_SASE"
+                verdict = "Threat Blocked (Zero-Trust Enforcement - Prisma Access NGFW)"
+            else:
+                status = "RECEIVED"
+                verdict = f"Threat payload returned HTTP {code} (Not Blocked)"
+            return base | {"status": status,
                            "http_code": code, "rtt_seconds": rtt,
-                           "security_verdict": "Threat Blocked (Zero-Trust Enforcement)" if blocked else "Not blocked",
+                           "security_verdict": verdict,
                            "threat_name": "Exploit-Test/WICAR.SecurityTest",
                            "scm_correlation_hint": f"Search SCM Threat logs for IP {r['assigned_ip']} / IMSI {r['imsi']}"}
-        ok = code > 0
-        return base | {"status": "SUCCESS" if ok else "FAILED", "http_code": code, "rtt_seconds": rtt,
-                       "security_verdict": "Allowed (Clean Traffic)" if 200 <= code < 400 else f"HTTP {code or 'no response'}"}
+
+        if is_unreachable or code == 0:
+            status = "FAILED"
+            verdict = "Network / Gateway Unreachable" if is_unreachable else "No HTTP Response"
+        elif 200 <= code < 400:
+            status = "SUCCESS"
+            verdict = "Allowed (Clean Traffic - Prisma Access Policy Permitted)"
+        else:
+            status = "FAILED"
+            verdict = f"HTTP {code}"
+        return base | {"status": status, "http_code": code, "rtt_seconds": rtt, "security_verdict": verdict}
 
     def ping(self, imsi: str, target: str = "10.45.0.1") -> Dict[str, Any]:
         """ICMP through the IMSI's own TUN (used by the Live Telemetry 'Ping Data Plane' button)."""

@@ -5701,6 +5701,72 @@
             filterSIMs();
         }
 
+        function getSimStatusPill(sim) {
+            const syncStatus = sim.sync_status || (sim.status === 'Active' ? 'active' : 'offline');
+            const ip = sim.ipv4_addr;
+            const iface = sim.interface;
+            const mismatches = sim.mismatches || [];
+            const reason = sim.sync_reason || '';
+
+            if (syncStatus === 'active' && ip) {
+                return `
+                    <div class="flex flex-col gap-0.5">
+                        <div class="flex items-center gap-1.5 font-mono text-cyan-400 font-semibold text-xs" title="4-Pillar Synchronized (RAN TUN + AMF + SMF + SCM)">
+                            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]"></span>
+                            <span>${ip}</span>
+                        </div>
+                        ${iface ? `<span class="text-[10px] font-mono text-emerald-400/80 pl-3.5">(${iface})</span>` : ''}
+                    </div>
+                `;
+            } else if (syncStatus === 'starting') {
+                return `
+                    <div class="flex items-center gap-1.5 text-amber-400 font-sans text-xs font-medium">
+                        <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                        <span>Starting 5G...</span>
+                    </div>
+                `;
+            } else if (syncStatus === 'inconsistent') {
+                const tip = (mismatches.length > 0 ? mismatches.join('; ') : reason) || '4-pillar state mismatch';
+                return `
+                    <div class="flex flex-col gap-0.5" title="${tip}">
+                        <div class="flex items-center gap-1.5 text-amber-400 font-sans text-xs font-semibold">
+                            <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+                            <span>Inconsistent ⚠️</span>
+                        </div>
+                        <span class="text-[10px] text-amber-400/70 truncate max-w-[130px] font-mono">${reason || 'State mismatch'}</span>
+                    </div>
+                `;
+            } else if (syncStatus === 'unknown') {
+                return `
+                    <div class="flex items-center gap-1.5 text-purple-400 font-sans text-xs" title="RAN Agent or Core probe unavailable">
+                        <span class="w-2 h-2 rounded-full bg-purple-400"></span>
+                        <span>Unknown</span>
+                    </div>
+                `;
+            } else if (syncStatus === 'scm_only') {
+                return `
+                    <div class="flex items-center gap-1.5 text-yellow-400 font-sans text-xs" title="Registered in SCM but missing in Open5GS Core">
+                        <span class="w-2 h-2 rounded-full bg-yellow-400"></span>
+                        <span>SCM Only</span>
+                    </div>
+                `;
+            } else if (syncStatus === 'core_only') {
+                return `
+                    <div class="flex items-center gap-1.5 text-sky-400 font-sans text-xs" title="Provisioned in Open5GS Core but not mapped in SCM">
+                        <span class="w-2 h-2 rounded-full bg-sky-400"></span>
+                        <span>Core Only</span>
+                    </div>
+                `;
+            } else {
+                return `
+                    <div class="flex items-center gap-1.5 text-gray-500 font-sans text-xs">
+                        <span class="w-1.5 h-1.5 rounded-full bg-red-500/60"></span>
+                        <span>Offline</span>
+                    </div>
+                `;
+            }
+        }
+
         function renderSIMsTable(sims) {
             const tbody = document.getElementById('sims-table-body');
             const thead = document.getElementById('sims-table-head');
@@ -5771,17 +5837,56 @@
 
             const sortedSims = [...sims].sort((a, b) => compareSIMValues(a, b, simsSortCol, simsSortDir));
 
+            const renderActions = (sim, identityId) => {
+                const isAct = sim.status === 'Active' || sim.sync_status === 'active';
+                const isStart = sim.sync_status === 'starting';
+                const imsi = sim.imsi;
+                const ip = sim.ipv4_addr || '';
+
+                let powerBtn;
+                if (isAct) {
+                    powerBtn = `
+                        <button onclick="openTrafficModal('${imsi}', '${ip}')" class="px-2.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-xs transition cursor-pointer inline-flex items-center gap-1" title="Generate Live 5G Traffic & Test Prisma SASE Security">
+                            <i data-lucide="activity" class="w-3.5 h-3.5 inline"></i> Traffic
+                        </button>
+                        <button onclick="handleQuickDetachSim('${imsi}')" class="w-7 h-7 rounded-lg bg-rose-500/15 hover:bg-rose-500/35 text-rose-400 border border-rose-500/30 transition cursor-pointer inline-flex items-center justify-center" title="Power Off — Stop 5G Radio & Release Session">
+                            <i data-lucide="power" class="w-3.5 h-3.5"></i>
+                        </button>
+                    `;
+                } else if (isStart) {
+                    powerBtn = `
+                        <button disabled class="px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-300 border border-amber-500/30 text-xs inline-flex items-center gap-1 opacity-80 cursor-wait">
+                            <i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i> Booting...
+                        </button>
+                    `;
+                } else {
+                    powerBtn = `
+                        <button onclick="handleQuickAttachSim('${imsi}')" class="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 text-xs transition cursor-pointer inline-flex items-center gap-1" title="Power On — Boot 5G Radio & Register to SCM">
+                            <i data-lucide="zap" class="w-3.5 h-3.5 inline"></i> Power On
+                        </button>
+                    `;
+                }
+
+                return `
+                    <button onclick="openUeLogsModal('${imsi}')" class="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs transition cursor-pointer inline-flex items-center gap-1" title="Inspect Dual Open5GS Core & UERANSIM Radio Logs">
+                        <i data-lucide="split" class="w-3.5 h-3.5"></i> 5G Logs
+                    </button>
+                    <button onclick="openEditSimModal('${identityId}')" class="px-2.5 py-1 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 text-xs transition" title="Edit 5G Identity & Metadata">
+                        <i data-lucide="edit-3" class="w-3.5 h-3.5 inline"></i> Edit
+                    </button>
+                    ${powerBtn}
+                    <button onclick="handleDeleteSIM('${identityId}', '${imsi}')" class="px-2 py-1 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs transition" title="Delete SIM">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5 inline"></i>
+                    </button>
+                `;
+            };
+
             tbody.innerHTML = sortedSims.map(sim => {
                 const identityId = sim.identity_id || '';
                 const groups = sim.groups || [];
                 const groupBadges = getDynamicGroupBadges(groups, identityId);
-
-                const isActive = sim.status === 'Active';
-                // Show IP with green pulse ONLY when truly Active
-                // Inactive SIMs show ● Offline even if they have a cached IP
-                const ipDisplay = (isActive && sim.ipv4_addr)
-                    ? `<div class="flex items-center gap-1.5 font-mono text-cyan-400 font-semibold"><span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> ${sim.ipv4_addr}</div>`
-                    : `<div class="flex items-center gap-1.5 text-gray-500 font-sans text-[11px]"><span class="w-1.5 h-1.5 rounded-full bg-red-500/60"></span> Offline</div>`;
+                const ipDisplay = getSimStatusPill(sim);
+                const actionsHtml = renderActions(sim, identityId);
 
                 if (inventoryViewMode === 'enriched') {
                     // Rich Business / IoT Fleet View
@@ -5831,27 +5936,7 @@
                                 ${groupBadges}
                             </td>
                             <td class="px-5 py-3.5 text-right space-x-1.5 font-sans whitespace-nowrap">
-                                <button onclick="openUeLogsModal('${sim.imsi}')" class="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs transition cursor-pointer inline-flex items-center gap-1" title="Inspect Dual Open5GS Core & UERANSIM Radio Logs">
-                                    <i data-lucide="split" class="w-3.5 h-3.5"></i> 5G Logs
-                                </button>
-                                <button onclick="openEditSimModal('${identityId}')" class="px-2.5 py-1 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 text-xs transition" title="Edit 5G Identity & Metadata">
-                                    <i data-lucide="edit-3" class="w-3.5 h-3.5 inline"></i> Edit
-                                </button>
-                                ${isActive ? `
-                                    <button onclick="openTrafficModal('${sim.imsi}', '${sim.ipv4_addr || ''}')" class="px-2.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-xs transition cursor-pointer inline-flex items-center gap-1" title="Generate Live 5G Traffic & Test Prisma SASE Security">
-                                        <i data-lucide="activity" class="w-3.5 h-3.5 inline"></i> Traffic
-                                    </button>
-                                    <button onclick="handleQuickDetachSim('${sim.imsi}')" class="w-7 h-7 rounded-lg bg-rose-500/15 hover:bg-rose-500/35 text-rose-400 border border-rose-500/30 transition cursor-pointer inline-flex items-center justify-center" title="Power Off — Stop 5G Radio & Release Session">
-                                        <i data-lucide="power" class="w-3.5 h-3.5"></i>
-                                    </button>
-                                ` : `
-                                    <button onclick="handleQuickAttachSim('${sim.imsi}')" class="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 text-xs transition cursor-pointer inline-flex items-center gap-1" title="Power On — Boot 5G Radio & Register to SCM">
-                                        <i data-lucide="zap" class="w-3.5 h-3.5 inline"></i> Power On
-                                    </button>
-                                `}
-                                <button onclick="handleDeleteSIM('${identityId}', '${sim.imsi}')" class="px-2 py-1 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs transition" title="Delete SIM">
-                                    <i data-lucide="trash-2" class="w-3.5 h-3.5 inline"></i>
-                                </button>
+                                ${actionsHtml}
                             </td>
                         </tr>
                     `;
@@ -5885,27 +5970,7 @@
                                 ${groupBadges}
                             </td>
                             <td class="px-5 py-3.5 text-right space-x-1.5 font-sans whitespace-nowrap">
-                                <button onclick="openUeLogsModal('${sim.imsi}')" class="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs transition cursor-pointer inline-flex items-center gap-1" title="Inspect Dual Open5GS Core & UERANSIM Radio Logs">
-                                    <i data-lucide="split" class="w-3.5 h-3.5"></i> 5G Logs
-                                </button>
-                                <button onclick="openEditSimModal('${identityId}')" class="px-2 py-1 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 text-xs transition" title="Edit 5G Identity & Group">
-                                    <i data-lucide="edit-3" class="w-3.5 h-3.5 inline"></i> Edit
-                                </button>
-                                ${isActive ? `
-                                    <button onclick="openTrafficModal('${sim.imsi}', '${sim.ipv4_addr || ''}')" class="px-2.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-xs transition cursor-pointer inline-flex items-center gap-1" title="Generate Live 5G Traffic & Test Prisma SASE Security">
-                                        <i data-lucide="activity" class="w-3.5 h-3.5 inline"></i> Traffic
-                                    </button>
-                                    <button onclick="handleQuickDetachSim('${sim.imsi}')" class="w-7 h-7 rounded-lg bg-rose-500/15 hover:bg-rose-500/35 text-rose-400 border border-rose-500/30 transition cursor-pointer inline-flex items-center justify-center" title="Power Off — Stop 5G Radio & Release Session">
-                                        <i data-lucide="power" class="w-3.5 h-3.5"></i>
-                                    </button>
-                                ` : `
-                                    <button onclick="handleQuickAttachSim('${sim.imsi}')" class="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 text-xs transition cursor-pointer inline-flex items-center gap-1" title="Power On — Boot 5G Radio & Register to SCM">
-                                        <i data-lucide="zap" class="w-3.5 h-3.5 inline"></i> Power On
-                                    </button>
-                                `}
-                                <button onclick="handleDeleteSIM('${identityId}', '${sim.imsi}')" class="px-2 py-1 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs transition" title="Delete SIM">
-                                    <i data-lucide="trash-2" class="w-3.5 h-3.5 inline"></i>
-                                </button>
+                                ${actionsHtml}
                             </td>
                         </tr>
                     `;
@@ -7000,13 +7065,13 @@
             const statEl = document.getElementById('traffic-terminal-status');
 
             if (statEl) {
-                statEl.innerText = 'Executing 3GPP Packet Injection...';
+                statEl.innerText = 'Injecting 5G Data Plane Packets...';
                 statEl.className = 'text-[11px] font-mono text-cyan-400 animate-pulse';
             }
 
             const timestamp = new Date().toLocaleTimeString();
             if (outEl) {
-                outEl.innerHTML = `<span class="text-cyan-400 font-bold">[${timestamp}] [3GPP DATA PLANE] Executing '${trafficType}' traffic for IMSI ${currentTrafficImsi}...</span>\n<span class="text-gray-400">Binding packets to Linux TUN interface ➔ Open5GS GTP-U ➔ Palo Alto Prisma Access SASE...</span>\n`;
+                outEl.innerHTML = `<span class="text-cyan-400 font-bold">[${timestamp}] [3GPP DATA PLANE] Executing '${trafficType}' traffic for IMSI ${currentTrafficImsi}...</span>\n<span class="text-gray-400">Binding socket to Linux TUN interface ➔ Open5GS GTP-U ➔ Palo Alto Prisma Access SASE...</span>\n`;
             }
 
             try {
@@ -7020,31 +7085,73 @@
                 });
                 const data = await res.json();
 
+                if (!res.ok || data.success === false) {
+                    if (statEl) {
+                        statEl.innerText = data.status || 'Failed';
+                        statEl.className = 'text-[11px] font-mono text-rose-400 font-bold';
+                    }
+                    let errHtml = `<span class="text-rose-400 font-bold">[${timestamp}] [3GPP DATA PLANE] EXECUTION FAILED</span>\n`;
+                    errHtml += `<span class="text-rose-300">Error: ${data.error || data.detail || 'Unknown error'}</span>\n`;
+                    if (data.state) {
+                        errHtml += `<span class="text-gray-400">Radio State: ${data.state.radio_state || 'unknown'} | Interface: ${data.state.interface || 'none'}</span>\n`;
+                    }
+                    if (outEl) outEl.innerHTML = errHtml;
+                    showToast("Traffic Failed", data.error || "Execution failed", true);
+                    return;
+                }
+
+                const isSuccess = data.status === 'SUCCESS';
+                const isBlocked = data.status === 'BLOCKED_BY_PRISMA_SASE';
+                const isUnreachable = data.status === 'UNREACHABLE';
+
                 if (statEl) {
                     statEl.innerText = data.status || 'Completed';
-                    statEl.className = data.status === 'BLOCKED_BY_PRISMA_SASE' ? 'text-[11px] font-mono text-rose-400 font-bold' : 'text-[11px] font-mono text-emerald-400 font-bold';
+                    if (isBlocked) {
+                        statEl.className = 'text-[11px] font-mono text-rose-400 font-bold';
+                    } else if (isSuccess) {
+                        statEl.className = 'text-[11px] font-mono text-emerald-400 font-bold';
+                    } else {
+                        statEl.className = 'text-[11px] font-mono text-amber-400 font-bold';
+                    }
                 }
 
                 let outputHtml = `<span class="text-cyan-400 font-bold">[${timestamp}] [3GPP DATA PLANE] Target: ${data.target || 'N/A'}</span>\n`;
                 outputHtml += `<span class="text-gray-300">Interface: </span><span class="text-yellow-400 font-bold">${data.interface || 'uesimtun'}</span> | <span class="text-gray-300">Assigned 5G IP: </span><span class="text-emerald-400 font-bold">${data.assigned_ip || currentTrafficIp}</span>\n\n`;
 
                 if (trafficType === 'threat_blocked') {
-                    outputHtml += `<span class="text-rose-400 font-bold text-sm">🛡️ SECURITY VERDICT: ${data.security_verdict || 'Threat Blocked'}</span>\n`;
-                    outputHtml += `<span class="text-rose-300">Threat Signature: ${data.threat_name || 'Exploit-Test/WICAR.SecurityTest'}</span>\n`;
-                    outputHtml += `<span class="text-gray-400">Action: Connection Dropped / Reset by Prisma Access NGFW inline inspection</span>\n\n`;
-                    outputHtml += `<span class="text-cyan-300 font-bold">👉 SCM Log Correlation: </span><span class="text-gray-300">Open Strata Cloud Manager ➔ Monitor ➔ Threat Logs. Search by IP: <span class="text-cyan-400 font-mono">${data.assigned_ip || currentTrafficIp}</span> or User/IMSI: <span class="text-cyan-400 font-mono">${currentTrafficImsi}</span>.</span>\n`;
+                    if (isBlocked) {
+                        outputHtml += `<span class="text-rose-400 font-bold text-sm">🛡️ SECURITY VERDICT: ${data.security_verdict || 'Threat Blocked'}</span>\n`;
+                        outputHtml += `<span class="text-rose-300">Threat Signature: ${data.threat_name || 'Exploit-Test/WICAR.SecurityTest'}</span>\n`;
+                        outputHtml += `<span class="text-gray-400">Action: Connection Dropped / Reset by Prisma Access NGFW inline inspection</span>\n\n`;
+                        outputHtml += `<span class="text-cyan-300 font-bold">👉 SCM Log Correlation: </span><span class="text-gray-300">Open Strata Cloud Manager ➔ Monitor ➔ Threat Logs. Search by IP: <span class="text-cyan-400 font-mono">${data.assigned_ip || currentTrafficIp}</span> or User/IMSI: <span class="text-cyan-400 font-mono">${currentTrafficImsi}</span>.</span>\n`;
+                    } else if (isUnreachable) {
+                        outputHtml += `<span class="text-amber-400 font-bold text-sm">⚠️ DATA PLANE WARNING: ${data.security_verdict}</span>\n`;
+                        outputHtml += `<span class="text-gray-400 font-mono">${data.raw_output || 'Gateway unreachable'}</span>\n`;
+                    } else {
+                        outputHtml += `<span class="text-amber-400 font-bold text-sm">⚠️ SECURITY VERDICT: ${data.security_verdict}</span>\n`;
+                        outputHtml += `<span class="text-gray-300">HTTP Status: </span><span class="text-amber-400 font-bold">${data.http_code || 'N/A'}</span>\n`;
+                    }
                 } else if (trafficType === 'ping') {
-                    outputHtml += `<span class="text-emerald-400 font-bold text-sm">🏓 ICMP PING RESULT: SUCCESS (0% Packet Loss)</span>\n`;
-                    outputHtml += `<span class="text-gray-300">Average RTT Latency: </span><span class="text-cyan-400 font-bold">${data.latency_ms || 14.5} ms</span>\n\n`;
-                    outputHtml += `<span class="text-gray-400 font-mono">${data.raw_output || '3 packets transmitted, 3 received, 0% packet loss'}</span>\n`;
+                    if (isSuccess) {
+                        outputHtml += `<span class="text-emerald-400 font-bold text-sm">🏓 ICMP PING RESULT: SUCCESS (${data.packet_loss || '0%'} Packet Loss)</span>\n`;
+                        outputHtml += `<span class="text-gray-300">Average RTT Latency: </span><span class="text-cyan-400 font-bold">${data.latency_ms !== null && data.latency_ms !== undefined ? data.latency_ms + ' ms' : 'N/A'}</span>\n\n`;
+                    } else {
+                        outputHtml += `<span class="text-rose-400 font-bold text-sm">❌ ICMP PING RESULT: FAILED (${data.packet_loss || '100%'} Packet Loss)</span>\n`;
+                    }
+                    outputHtml += `<span class="text-gray-400 font-mono">${data.raw_output || 'No ping output recorded'}</span>\n`;
                 } else {
-                    outputHtml += `<span class="text-emerald-400 font-bold text-sm">🟢 HTTP VERDICT: 200 OK (Allowed Clean Traffic)</span>\n`;
-                    outputHtml += `<span class="text-gray-300">HTTP Status: </span><span class="text-emerald-400 font-bold">${data.http_code || 200}</span> | <span class="text-gray-300">Roundtrip: </span><span class="text-cyan-400 font-bold">${data.rtt_seconds || 0.082}s</span>\n\n`;
-                    outputHtml += `<span class="text-emerald-300">Traffic inspected and permitted by Palo Alto Networks Prisma Access Security Policy.</span>\n`;
+                    if (isSuccess) {
+                        outputHtml += `<span class="text-emerald-400 font-bold text-sm">🟢 HTTP VERDICT: HTTP ${data.http_code || 200} (Allowed Clean Traffic)</span>\n`;
+                        outputHtml += `<span class="text-gray-300">Roundtrip: </span><span class="text-cyan-400 font-bold">${data.rtt_seconds !== null && data.rtt_seconds !== undefined ? data.rtt_seconds + 's' : 'N/A'}</span>\n\n`;
+                        outputHtml += `<span class="text-emerald-300">Traffic inspected and permitted by Palo Alto Networks Prisma Access Security Policy.</span>\n`;
+                    } else {
+                        outputHtml += `<span class="text-amber-400 font-bold text-sm">⚠️ HTTP RESULT: ${data.security_verdict || 'Request Failed'}</span>\n`;
+                        outputHtml += `<span class="text-gray-300">HTTP Status: </span><span class="text-amber-400 font-bold">${data.http_code || 'None'}</span> | <span class="text-gray-300">Raw: </span><span class="text-gray-400 font-mono">${data.raw_output || 'No response'}</span>\n`;
+                    }
                 }
 
                 if (outEl) outEl.innerHTML = outputHtml;
-                showToast(trafficType === 'threat_blocked' ? "Threat Blocked 🛡️" : "Traffic Sent 🟢", `Tested interface ${data.interface || 'uesimtun'} (${trafficType})`);
+                showToast(isBlocked ? "Threat Blocked 🛡️" : (isSuccess ? "Traffic Sent 🟢" : "Traffic Result ⚠️"), `Tested interface ${data.interface || 'uesimtun'} (${trafficType})`);
 
             } catch (err) {
                 if (statEl) {
@@ -7800,13 +7907,21 @@
             }
 
             tbody.innerHTML = sims.map(s => {
-                const isActive = s.status === 'Active';
-                const statusBadge = isActive
-                    ? `<span class="inline-flex items-center gap-1.5 text-emerald-400 font-sans font-medium"><span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Active</span>`
-                    : `<span class="inline-flex items-center gap-1.5 text-red-400 font-sans font-medium"><span class="w-2 h-2 rounded-full bg-red-400"></span> Inactive</span>`;
+                const syncStatus = s.sync_status || (s.status === 'Active' ? 'active' : 'offline');
+                const isActive = syncStatus === 'active';
+                let statusBadge;
+                if (isActive) {
+                    statusBadge = `<span class="inline-flex items-center gap-1.5 text-emerald-400 font-sans font-medium"><span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]"></span> Active</span>`;
+                } else if (syncStatus === 'starting') {
+                    statusBadge = `<span class="inline-flex items-center gap-1.5 text-amber-400 font-sans font-medium"><span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span> Starting</span>`;
+                } else if (syncStatus === 'inconsistent') {
+                    statusBadge = `<span class="inline-flex items-center gap-1.5 text-amber-400 font-sans font-medium" title="${s.sync_reason || 'Inconsistent'}"><span class="w-2 h-2 rounded-full bg-amber-500"></span> Inconsistent</span>`;
+                } else {
+                    statusBadge = `<span class="inline-flex items-center gap-1.5 text-gray-500 font-sans font-medium"><span class="w-1.5 h-1.5 rounded-full bg-red-500/60"></span> Inactive</span>`;
+                }
 
                 const timeStr = s.create_time ? formatTime(s.create_time) : '2026-09-09 14:46:25';
-                const ipv4Badge = s.ipv4_addr
+                const ipv4Badge = (isActive && s.ipv4_addr)
                     ? `<span class="text-cyan-400 font-bold font-mono">${s.ipv4_addr}</span>`
                     : `<span class="text-gray-500 font-sans">N/A</span>`;
                 const ipv6Badge = s.ipv6_addr
@@ -8084,39 +8199,50 @@
                 if (!sessions || sessions.length === 0) {
                     if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-gray-500 font-sans">No active 5G PDU sessions detected. Create a SIM or run Lifecycle Test.</td></tr>`;
                 } else if (tbody) {
-                    tbody.innerHTML = sessions.map(sess => `
-                        <tr class="hover:bg-white/5 transition border-b border-white/5">
-                            <td class="py-3 px-3">
-                                <div class="font-bold text-white flex items-center gap-1.5">
-                                    <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-                                    <span>${sess.supi}</span>
-                                </div>
-                            </td>
-                            <td class="py-3 px-3">
-                                <span class="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-mono font-bold">${sess.ipv4 || 'Pending'}</span>
-                            </td>
-                            <td class="py-3 px-3">
-                                <span class="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 font-mono font-bold">${sess.interface || 'uesimtun*'}</span>
-                            </td>
-                            <td class="py-3 px-3">
-                                <span class="text-gray-300 font-mono">SST: ${sess.sst}</span>
-                            </td>
-                            <td class="py-3 px-3">
-                                <span class="text-amber-300 font-mono">5QI: ${sess.five_qi}</span>
-                            </td>
-                            <td class="py-3 px-3">
-                                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 uppercase">${sess.pdu_state || 'ACTIVE'}</span>
-                            </td>
-                            <td class="py-3 px-3 text-right space-x-1.5 whitespace-nowrap">
-                                <button onclick="openUeLogsModal('${sess.imsi}')" class="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[11px] font-sans font-medium transition cursor-pointer inline-flex items-center gap-1" title="Inspect Dual Core & Radio Logs">
-                                    <i data-lucide="split" class="w-3 h-3"></i> 5G Logs
-                                </button>
-                                <button onclick="ping5GInterface('${sess.interface || sess.imsi}')" class="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-cyan-500/20 text-cyan-300 border border-white/10 hover:border-cyan-500/30 text-[11px] font-sans font-medium transition cursor-pointer">
-                                    Ping Data Plane
-                                </button>
-                            </td>
-                        </tr>
-                    `).join('');
+                    tbody.innerHTML = sessions.map(sess => {
+                        const isStale = Boolean(sess.stale);
+                        const statusBadge = isStale
+                            ? `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30 uppercase" title="${sess.sync_reason || 'Leftover session in SMF memory'}">STALE SMF</span>`
+                            : `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 uppercase">${sess.pdu_state || 'ACTIVE'}</span>`;
+
+                        const dot = isStale
+                            ? `<span class="w-2 h-2 rounded-full bg-amber-400" title="Stale SMF session"></span>`
+                            : `<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>`;
+
+                        const ipBadge = isStale
+                            ? `<span class="px-2 py-0.5 rounded bg-gray-800/80 text-gray-400 font-mono text-xs">${sess.ipv4 || 'N/A'}</span>`
+                            : `<span class="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-mono font-bold">${sess.ipv4 || 'Pending'}</span>`;
+
+                        const ifaceBadge = sess.interface
+                            ? `<span class="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 font-mono font-bold">${sess.interface}</span>`
+                            : `<span class="px-2 py-0.5 rounded bg-gray-800/80 text-gray-500 font-mono text-xs">none</span>`;
+
+                        const pingBtn = sess.interface
+                            ? `<button onclick="ping5GInterface('${sess.interface}')" class="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-cyan-500/20 text-cyan-300 border border-white/10 hover:border-cyan-500/30 text-[11px] font-sans font-medium transition cursor-pointer">Ping Data Plane</button>`
+                            : `<button disabled class="px-2.5 py-1 rounded-lg bg-gray-800/60 text-gray-500 text-[11px] font-sans font-medium cursor-not-allowed">No TUN</button>`;
+
+                        return `
+                            <tr class="hover:bg-white/5 transition border-b border-white/5">
+                                <td class="py-3 px-3">
+                                    <div class="font-bold text-white flex items-center gap-1.5">
+                                        ${dot}
+                                        <span>${sess.supi}</span>
+                                    </div>
+                                </td>
+                                <td class="py-3 px-3">${ipBadge}</td>
+                                <td class="py-3 px-3">${ifaceBadge}</td>
+                                <td class="py-3 px-3"><span class="text-gray-300 font-mono">SST: ${sess.sst}</span></td>
+                                <td class="py-3 px-3"><span class="text-amber-300 font-mono">5QI: ${sess.five_qi}</span></td>
+                                <td class="py-3 px-3">${statusBadge}</td>
+                                <td class="py-3 px-3 text-right space-x-1.5 whitespace-nowrap">
+                                    <button onclick="openUeLogsModal('${sess.imsi}')" class="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[11px] font-sans font-medium transition cursor-pointer inline-flex items-center gap-1" title="Inspect Dual Core & Radio Logs">
+                                        <i data-lucide="split" class="w-3 h-3"></i> 5G Logs
+                                    </button>
+                                    ${pingBtn}
+                                </td>
+                            </tr>
+                        `;
+                    }).join('');
                 }
 
                 if (showFeedback && typeof showToast === 'function') {

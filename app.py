@@ -1724,6 +1724,8 @@ def list_ues(tsg_id: Optional[str] = None):
                 "interface": sim.get("interface") if is_active else None,
                 "sync_status": sim.get("status", "unknown"),
                 "sync_reason": sim.get("reason"),
+                "pillars": sim.get("pillars", {}),
+                "mismatches": sim.get("mismatches", []),
             })
 
         save_cached_ues(res_data)
