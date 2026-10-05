@@ -4364,28 +4364,39 @@
         }
 
         // Toast Helper
+        let toastTimer = null;
         function showToast(title, message, isError = false) {
             const toast = document.getElementById('toast');
-            document.getElementById('toast-title').innerText = title;
-            document.getElementById('toast-message').innerText = message;
+            if (!toast) return;
+            if (toastTimer) clearTimeout(toastTimer);
+
+            const titleEl = document.getElementById('toast-title');
+            const msgEl = document.getElementById('toast-message');
+            if (titleEl) titleEl.innerText = title;
+            if (msgEl) msgEl.innerText = message;
             
             const iconContainer = document.getElementById('toast-icon');
             if (isError) {
-                toast.classList.remove('border-cyan-500/30');
-                toast.classList.add('border-red-500/50', 'bg-red-950/80');
-                iconContainer.innerHTML = '<i data-lucide="alert-triangle" class="w-4 h-4 text-red-400"></i>';
+                toast.classList.remove('border-cyan-500/30', 'bg-gray-900/90');
+                toast.classList.add('border-red-500/50', 'bg-red-950/95', 'shadow-red-950/50');
+                if (iconContainer) iconContainer.innerHTML = '<i data-lucide="alert-triangle" class="w-4 h-4 text-red-400"></i>';
             } else {
-                toast.classList.remove('border-red-500/50', 'bg-red-950/80');
+                toast.classList.remove('border-red-500/50', 'bg-red-950/95', 'shadow-red-950/50');
                 toast.classList.add('border-cyan-500/30', 'bg-gray-900/90');
-                iconContainer.innerHTML = '<i data-lucide="check-circle-2" class="w-4 h-4 text-cyan-400"></i>';
+                if (iconContainer) iconContainer.innerHTML = '<i data-lucide="check-circle-2" class="w-4 h-4 text-cyan-400"></i>';
             }
-            lucide.createIcons();
+            if (window.lucide) lucide.createIcons();
             toast.classList.remove('hidden');
-            setTimeout(hideToast, 4500);
+            toastTimer = setTimeout(hideToast, isError ? 9000 : 4500);
         }
 
         function hideToast() {
-            document.getElementById('toast').classList.add('hidden');
+            const toast = document.getElementById('toast');
+            if (toast) toast.classList.add('hidden');
+            if (toastTimer) {
+                clearTimeout(toastTimer);
+                toastTimer = null;
+            }
         }
 
         // Active Tenant State
