@@ -2,6 +2,7 @@
 
 import unittest
 from fastapi.testclient import TestClient
+import app as app_module
 from app import app
 from src.ueransim import UERANSIMClient
 
@@ -10,6 +11,12 @@ class TestTrafficAndFleet(unittest.TestCase):
     def setUp(self):
         self.client = TestClient(app)
         self.ran = UERANSIMClient(mock_mode=True)
+        # No RAN agent in unit tests: the real client would (correctly) report failure.
+        self._orig_mock = app_module._ueransim_client.mock_mode
+        app_module._ueransim_client.mock_mode = True
+
+    def tearDown(self):
+        app_module._ueransim_client.mock_mode = self._orig_mock
 
     def test_mock_traffic_allowed(self):
         res = self.ran.exec_ue_traffic("999700000000101", traffic_type="allowed")

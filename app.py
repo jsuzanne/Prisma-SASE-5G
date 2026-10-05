@@ -13,9 +13,19 @@ import os
 import time
 import random
 import re
+import logging
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 from pathlib import Path
+
+DEBUG = os.environ.get("DEBUG", "false").lower() in ("1", "true", "yes", "on")
+logging.basicConfig(
+    level=logging.DEBUG if DEBUG else logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
+for _noisy in ("pymongo", "urllib3", "httpx", "httpcore", "asyncio", "multipart"):
+    logging.getLogger(_noisy).setLevel(logging.WARNING)
+logger = logging.getLogger("app")
 
 from fastapi import FastAPI, HTTPException, Request, BackgroundTasks, Response, Body
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
@@ -128,6 +138,55 @@ def get_open5gs_client() -> Open5GSClient:
 
 def get_ueransim_client() -> UERANSIMClient:
     return _ueransim_client
+
+
+# -----------------------------------------------------------------------------
+# Ground-truth reconciler (single snapshot of SCM / MongoDB / AMF+SMF / RAN agent)
+# -----------------------------------------------------------------------------
+from src.reconciler import Reconciler
+
+
+def _scm_inventory_fetch() -> List[Dict[str, Any]]:
+    """SCM SIM inventory for the reconciler. Raises on any error (never 'empty' on failure)."""
+    cfg = load_config()
+    if cfg.standalone_mode:
+        raise RuntimeError("standalone mode: SCM not queried")
+    resp = get_current_client(cfg).list_tenant_ues(strict=True)
+    out = []
+    for m in resp.get("models", []):
+        out.append({
+            "imsi": re.sub(r"\D", "", str(m.imsi)),
+            "imei": m.imei,
+            "apn": m.apn,
+            "tsg_id": m.tsg_id,
+            "tenant_name": m.tenant_name,
+            "groups": m.groups or [],
+            "identity_id": m.identity_id,
+        })
+    return out
+
+
+_reconciler = Reconciler(_ueransim_client, _open5gs_client, scm_fetcher=_scm_inventory_fetch)
+
+
+def get_reconciler() -> Reconciler:
+    return _reconciler
+
+
+@app.on_event("startup")
+def _start_reconciler():
+    if os.environ.get("ROLE") == "ue-agent":
+        return
+    if os.environ.get("RECONCILER_ENABLED", "true").lower() in ("0", "false", "no", "off"):
+        logger.info("event=reconciler.disabled")
+        return
+    _reconciler.start()
+
+
+def _sim_state(imsi: str, fresh: bool = False) -> Dict[str, Any]:
+    """Snapshot entry for one IMSI ({} if unknown to every source)."""
+    snap = _reconciler.refresh_now() if fresh else _reconciler.snapshot()
+    return (snap.get("sims") or {}).get(re.sub(r"\D", "", str(imsi)), {})
 
 
 from src.cidr import (
@@ -546,11 +605,39 @@ def probe_all_endpoints():
     return compute_endpoint_health(config)
 
 
+@app.get("/api/state")
+def get_ground_truth_state(fresh: bool = False):
+    """Single source of truth: per-SIM status reconciled across SCM, MongoDB, AMF/SMF and the RAN agent."""
+    snap = get_reconciler().refresh_now() if fresh else get_reconciler().snapshot()
+    return {k: v for k, v in snap.items() if not k.startswith("_")}
+
+
+@app.get("/api/state/events")
+def get_ground_truth_events(limit: int = 100, imsi: Optional[str] = None):
+    """Reconciler transition log (state.transition, power-on requests, SCM errors...)."""
+    return {"events": get_reconciler().events(limit=limit, imsi=imsi)}
+
+
+@app.post("/api/state/refresh")
+def refresh_ground_truth_state(scm: bool = True):
+    """Force an immediate reconcile cycle (optionally re-fetching SCM inventory)."""
+    snap = get_reconciler().refresh_now(refresh_scm=scm)
+    return {k: v for k, v in snap.items() if not k.startswith("_")}
+
+
+@app.get("/api/5g/agent/events")
+def get_ran_agent_events(limit: int = 100, imsi: Optional[str] = None):
+    """Proxy to the RAN agent's structured event log (start/stop/kill/TUN cleanup...)."""
+    return get_ueransim_client().get_agent_events(limit=limit, imsi=imsi)
+
+
 @app.get("/api/5g/monitoring")
 def get_5g_core_monitoring():
-    """Retrieve live real-time telemetry from Open5GS 5G Core, SMF, AMF, MongoDB, and UERANSIM RAN."""
+    """Live 5G telemetry. Per-UE state comes from the reconciled snapshot (never guessed)."""
     core = get_open5gs_client()
     ran = get_ueransim_client()
+    snap = get_reconciler().snapshot(max_age_s=5)
+    sims = snap.get("sims", {})
 
     core_status = core.get_core_status()
     pdu_sessions = core.get_smf_pdu_info()
@@ -559,14 +646,14 @@ def get_5g_core_monitoring():
     tun_ifaces = ran.get_active_tun_interfaces()
     active_ran_ues = ran.list_active_ues()
 
-    # Enrich PDU sessions with matching TUN interfaces and subscriber metadata
     enriched_sessions = []
     for item in pdu_sessions:
         supi = item.get("supi", "")
         imsi = supi.replace("imsi-", "")
+        sim = sims.get(imsi, {})
         for pdu in item.get("pdu", []):
             ipv4 = pdu.get("ipv4", "")
-            matching_tun = next((t["interface"] for t in tun_ifaces if t.get("ip") == ipv4), "uesimtun*")
+            verified = sim.get("status") == "active" and sim.get("live_ip") == ipv4
             enriched_sessions.append({
                 "supi": supi,
                 "imsi": imsi,
@@ -576,8 +663,11 @@ def get_5g_core_monitoring():
                 "sst": pdu.get("snssai", {}).get("sst", 1),
                 "sd": pdu.get("snssai", {}).get("sd"),
                 "five_qi": (pdu.get("qos_flows", [{}])[0].get("5qi") if pdu.get("qos_flows") else 9),
-                "pdu_state": pdu.get("pdu_state", "active"),
-                "interface": matching_tun,
+                "pdu_state": pdu.get("pdu_state"),
+                "interface": sim.get("interface") if verified else None,
+                "sync_status": sim.get("status", "untracked"),
+                "sync_reason": sim.get("reason") or ("IMSI not in SCM, MongoDB or RAN: leftover SMF session" if not sim else None),
+                "stale": not verified,
             })
 
     return {
@@ -585,7 +675,9 @@ def get_5g_core_monitoring():
         "core_services": core_status,
         "active_pdu_sessions": enriched_sessions,
         "pdu_count": len(enriched_sessions),
-        "attached_ues_count": len(amf_ues),
+        "verified_session_count": sum(1 for s in enriched_sessions if not s["stale"]),
+        "attached_ues_count": len([u for u in amf_ues if u.get("mm_state") == "registered"]),
+        "amf_known_ues_count": len(amf_ues),
         "subscribers_count": {
             "total": len(subscribers),
             "managed": len([s for s in subscribers if s.get("managed_by") == "stigix-orchestrator"]),
@@ -593,6 +685,9 @@ def get_5g_core_monitoring():
         },
         "tun_interfaces": tun_ifaces,
         "active_ran_ues": active_ran_ues,
+        "stale_core_sessions": snap.get("stale_core_sessions", []),
+        "state_summary": snap.get("summary", {}),
+        "sources": snap.get("sources", {}),
         "timestamp": datetime.utcnow().isoformat() + "Z",
     }
 
@@ -628,42 +723,41 @@ def cleanup_stale_5g_resources():
             cleaned_sessions[imsi_k] = sess
     save_active_sessions(cleaned_sessions)
 
-    # 4. Restart SMF to clear in-memory inactive PDU sessions
-    try:
-        core._exec_command("sudo systemctl restart open5gs-smfd 2>/dev/null || true")
-        cleaned.append("Flushed SMF session memory")
-    except Exception as smf_e:
-        logger.debug("SMF restart warning during cleanup: %s", smf_e)
+    # 4. SMF in-memory sessions cannot be flushed from inside the container (no systemctl).
+    #    Stale SMF sessions are listed in /api/state -> stale_core_sessions.
+    stale = get_reconciler().refresh_now().get("stale_core_sessions", [])
+    if stale:
+        cleaned.append(f"NOTE: {len(stale)} stale SMF session(s) remain — restart open5gs-smfd on the core host to flush")
 
     return {
         "success": True,
         "cleaned_count": len(cleaned),
         "details": cleaned,
+        "stale_core_sessions": stale,
         "message": f"Successfully cleaned {len(cleaned)} stale test resource(s). Baseline lab UEs preserved.",
     }
 
 
 @app.post("/api/5g/ping/{interface_or_imsi}")
 def test_5g_tunnel_ping(interface_or_imsi: str):
-    """Execute ICMP ping test through a specific 5G TUN interface."""
+    """ICMP ping to the UPF gateway through the UE's OWN TUN (resolved by the RAN agent, never guessed)."""
     ran = get_ueransim_client()
-    iface = interface_or_imsi if interface_or_imsi.startswith("uesimtun") else None
-    if not iface:
-        # Resolve IMSI to TUN interface
-        tun_ifaces = ran.get_active_tun_interfaces()
-        if tun_ifaces:
-            iface = tun_ifaces[0].get("interface", "uesimtun0")
-        else:
-            iface = "uesimtun0"
-
-    cmd = f"ping -c 3 -I {iface} 10.45.0.1 2>&1 || true"
-    out = ran._exec_command(cmd)
-    success = "0% packet loss" in out or "1 packets received" in out or "2 packets received" in out or "3 packets received" in out
+    if interface_or_imsi.startswith("uesimtun"):
+        imsi = ran.imsi_for_interface(interface_or_imsi)
+        if not imsi:
+            return {"interface": interface_or_imsi, "success": False, "target_ip": "10.45.0.1",
+                    "output": f"{interface_or_imsi} is not owned by any live nr-ue process (RAN agent view)"}
+    else:
+        imsi = re.sub(r"\D", "", interface_or_imsi)
+    res = ran.ping(imsi, target="10.45.0.1")
     return {
-        "interface": iface,
-        "success": success,
+        "imsi": imsi,
+        "interface": res.get("interface"),
+        "success": bool(res.get("success")) and res.get("status") == "SUCCESS",
         "target_ip": "10.45.0.1",
-        "output": out,
+        "latency_ms": res.get("latency_ms"),
+        "packet_loss": res.get("packet_loss"),
+        "output": res.get("raw_output") or res.get("error") or "",
     }
 
 
@@ -710,9 +804,15 @@ def get_ue_radio_logs(imsi: str, lines: int = 50):
 
 @app.get("/api/5g/ue/status/{imsi}")
 def get_ue_radio_status(imsi: str):
-    """Retrieve live radio state, PID, PDU session status, and allocated TUN IP for a specific UE."""
+    """Live radio state (RAN agent) merged with the reconciled 4-pillar state for this SIM."""
     ran = get_ueransim_client()
-    return ran.get_ue_status(imsi=imsi)
+    st = ran.get_ue_status(imsi=imsi)
+    sim = _sim_state(imsi)
+    st["sync_status"] = sim.get("status", "unknown")
+    st["sync_reason"] = sim.get("reason")
+    st["live_ip"] = sim.get("live_ip")
+    st["pillars"] = {k: sim.get(k) for k in ("radio", "core", "scm")} if sim else None
+    return st
 
 
 @app.post("/api/5g/ue/attach/{imsi}")
@@ -729,20 +829,62 @@ def attach_ue_dynamic(imsi: str):
     core = get_open5gs_client()
     client = get_current_client()
 
-    # 1. Retrieve metadata for this IMSI (IMEI, APN, vertical)
+    # 1. Retrieve metadata for this IMSI (IMEI, APN, vertical, stored credentials)
     sim_meta = load_sim_metadata().get(clean_imsi, {})
-    all_sims_resp = client.list_tenant_ues()
     target_ue = None
-    for u in all_sims_resp.get("models", []):
-        if str(u.imsi) == clean_imsi:
-            target_ue = u
-            break
+    try:
+        all_sims_resp = client.list_tenant_ues()
+        for u in all_sims_resp.get("models", []):
+            if str(u.imsi) == clean_imsi:
+                target_ue = u
+                break
+    except Exception as scm_list_err:
+        logger.warning("event=attach.scm_lookup_failed imsi=%s error=%r", clean_imsi, str(scm_list_err))
 
     imei = (target_ue.imei if target_ue else None) or sim_meta.get("imei") or f"35412809{clean_imsi[-7:]}"
     apn = (target_ue.apn if target_ue else None) or sim_meta.get("apn") or "internet"
 
-    # 2. Ensure subscriber exists in Open5GS Core MongoDB & start radio UE
-    creds = generate_device_credentials(sim_meta.get("vertical", "smart_camera"), custom_imsi=clean_imsi, custom_imei=imei)
+    # 2. Credentials. The 5G Core authenticates against the MongoDB subscriber, so if it exists
+    #    its K/OP(c) are AUTHORITATIVE (a mismatch = AUTN MAC failure). Otherwise use persisted
+    #    metadata, otherwise generate and persist new ones.
+    mongo_sec = None
+    try:
+        existing_sub = core.get_subscriber(clean_imsi)
+        mongo_sec = (existing_sub or {}).get("security") or None
+    except Exception as sub_err:
+        logger.warning("event=attach.mongo_lookup_failed imsi=%s error=%r", clean_imsi, str(sub_err))
+    if mongo_sec and mongo_sec.get("k") and (mongo_sec.get("opc") or mongo_sec.get("op")):
+        m_type = "OPC" if mongo_sec.get("opc") else "OP"
+        m_op = mongo_sec.get("opc") or mongo_sec.get("op")
+        if (sim_meta.get("k") or "").upper() != mongo_sec["k"].upper() or (sim_meta.get("op") or "").upper() != m_op.upper():
+            logger.warning("event=attach.creds_resync imsi=%s source=mongodb op_type=%s (local metadata differed)",
+                           clean_imsi, m_type)
+            update_single_sim_metadata(clean_imsi, {"k": mongo_sec["k"], "op": m_op, "op_type": m_type})
+        sim_meta = {**sim_meta, "k": mongo_sec["k"], "op": m_op, "op_type": m_type}
+
+    stored_k = sim_meta.get("k")
+    stored_op = sim_meta.get("op")
+    stored_op_type = sim_meta.get("op_type", "OPC")
+
+    if stored_k and stored_op:
+        creds = {
+            "k": stored_k,
+            "op": stored_op,
+            "op_type": stored_op_type,
+            "vendor": sim_meta.get("vendor", "Standard"),
+            "device_model": sim_meta.get("device_type", "5G Device"),
+            "icon": sim_meta.get("icon", "bi-phone"),
+        }
+    else:
+        creds = generate_device_credentials(sim_meta.get("vertical", "smart_camera"), custom_imsi=clean_imsi, custom_imei=imei)
+        update_single_sim_metadata(clean_imsi, {
+            "k": creds["k"],
+            "op": creds["op"],
+            "op_type": creds.get("op_type", "OPC"),
+            "imei": imei,
+            "apn": apn,
+        })
+
     endpoint = OrchestratedEndpoint(
         imsi=clean_imsi,
         imei=imei,
@@ -753,33 +895,55 @@ def attach_ue_dynamic(imsi: str):
         device_model=sim_meta.get("device_type") or creds.get("device_model", "Standard 5G UE"),
         icon=sim_meta.get("icon") or creds.get("icon", "bi-phone"),
         security=SecurityConfig(
-            k=creds.get("k", "465B5CE8B199B49FAA5F0A2EE238A6BC"),
-            op=creds.get("op", "E8ED289DEBA952E4283B54E88E6183CA"),
-            op_type=creds.get("op_type", "OP"),
+            k=creds["k"],
+            op=creds["op"],
+            op_type=creds.get("op_type", "OPC"),
         ),
         slice=SliceConfig(sst=1),
         qos=QoSConfig(five_qi=9, ambr_dl_mbps=100, ambr_ul_mbps=50),
     )
-    if not core.get_subscriber(clean_imsi):
-        core.add_subscriber(endpoint)
 
+    # Attempt to provision subscriber in Open5GS (may already exist if created via Add Device)
+    try:
+        if not core.get_subscriber(clean_imsi):
+            core.create_subscriber(endpoint)
+    except Exception as core_err:
+        logger.warning(f"Open5GS provisioning skipped for {clean_imsi}: {core_err}")
+
+    # 2. Power on through the RAN agent. The agent only answers once the kernel TUN is up
+    #    (success) or registration/TUN setup failed (with the reason from the nr-ue log).
+    rec = get_reconciler()
     ue_status = ran.get_ue_status(clean_imsi)
-    if not ue_status.get("running"):
-        ran.start_ue(endpoint)
-        time.sleep(1.5)
-        ue_status = ran.get_ue_status(clean_imsi)
+    if ue_status.get("radio_state") != "active":
+        rec.mark_starting(clean_imsi)
+        ue_status = ran.start_ue(endpoint)
+        logger.info("event=attach.start_result imsi=%s success=%s radio_state=%s ip=%s error=%r",
+                    clean_imsi, ue_status.get("success"), ue_status.get("radio_state"),
+                    ue_status.get("assigned_ip"), ue_status.get("error"))
+    sim = (rec.refresh_now().get("sims") or {}).get(clean_imsi, {})
 
-    # 3. Extract dynamically allocated IP from Core / UERANSIM
-    allocated_ip = ue_status.get("assigned_ip")
+    # 3. The ONLY acceptable IP is the one on this IMSI's kernel TUN (assigned by SMF).
+    allocated_ip = ue_status.get("assigned_ip") if ue_status.get("radio_state") == "active" else None
     if not allocated_ip:
-        pdu_info = core.poll_pdu_session(clean_imsi, timeout_sec=3)
-        if pdu_info and pdu_info.get("ipv4"):
-            allocated_ip = pdu_info["ipv4"]
+        rec.clear_starting(clean_imsi)
+        reason = ue_status.get("error") or ue_status.get("last_error") or ue_status.get("reason") or sim.get("reason") or "no TUN interface came up"
+        # Power On failed -> the device must really be OFF (no half-started nr-ue lingering).
+        cleanup = ran.stop_ue_detail(clean_imsi) if ue_status.get("agent_reachable", True) else {}
+        sim = (rec.refresh_now().get("sims") or {}).get(clean_imsi, sim)
+        return {
+            "success": False,
+            "imsi": clean_imsi,
+            "allocated_ip": None,
+            "radio_state": ue_status.get("radio_state"),
+            "sync_status": sim.get("status", "unknown"),
+            "reason": reason,
+            "error": reason,
+            "initial_logs": ue_status.get("initial_logs", ""),
+            "cleanup_steps": (cleanup or {}).get("steps", []),
+            "message": f"Power On failed for {clean_imsi}: {reason}. Nothing registered in SCM.",
+        }
 
-    if not allocated_ip:
-        allocated_ip = get_next_available_ip(client.config.ue_cidr_blocks)
-
-    # 4. Auto-register session in SCM
+    # 4. Register the session in SCM with the REAL TUN IP
     session = UESession(
         imsi=clean_imsi,
         imei=imei,
@@ -788,15 +952,19 @@ def attach_ue_dynamic(imsi: str):
         ipv4_addr=allocated_ip,
     )
     scm_res = None
+    scm_ok = False
     try:
         scm_res = client.register_ue_session(session)
+        scm_ok = True
     except Exception as s_err:
-        scm_res = {"status_code": 200, "warning": str(s_err), "fallback": True}
+        scm_res = {"error": str(s_err)}
+        logger.warning("event=attach.scm_register_failed imsi=%s ip=%s error=%r", clean_imsi, allocated_ip, str(s_err))
 
     # 5. Update active session tracking
     update_single_sim_metadata(clean_imsi, {"last_ip": allocated_ip, "status": "Active"})
     update_single_active_session(clean_imsi, {
         "ipv4_addr": allocated_ip,
+        "interface": ue_status.get("interface"),
         "imei": imei,
         "apn": apn,
         "status": "Active",
@@ -808,56 +976,86 @@ def attach_ue_dynamic(imsi: str):
         "success": True,
         "imsi": clean_imsi,
         "allocated_ip": allocated_ip,
-        "interface": ue_status.get("interface", "uesimtun1"),
-        "pdu_status": ue_status.get("pdu_status", "PS-ACTIVE"),
+        "interface": ue_status.get("interface"),
+        "pdu_status": ue_status.get("pdu_status"),
+        "radio_state": ue_status.get("radio_state"),
+        "running": ue_status.get("running", False),
+        "sync_status": sim.get("status", "unknown"),
+        "sync_reason": sim.get("reason"),
+        "scm_registered": scm_ok,
         "scm_response": scm_res,
-        "message": f"Attached 5G UE {clean_imsi} with Core Dynamic IP {allocated_ip} -> SCM Registered 🟢",
+        "initial_logs": ue_status.get("initial_logs", ""),
+        "message": (f"Powered on 5G UE {clean_imsi}: {ue_status.get('interface')} = {allocated_ip}"
+                    + (" -> SCM session registered 🟢" if scm_ok else " -> ⚠️ SCM registration FAILED")),
     }
 
 
 @app.post("/api/5g/ue/detach/{imsi}")
 def detach_ue_dynamic(imsi: str):
     """
-    1-Click Zero-Touch Dynamic 5G Radio Disconnect & SCM Session Deregistration:
-    1. Stops UERANSIM nr-ue process.
-    2. Deregisters session from SCM.
-    3. Cleans active session state.
+    Power Off one UE:
+    1. Graceful 3GPP deregistration + stop of its nr-ue process (RAN agent; only its own TUN removed).
+    2. Deregisters the SCM session with the IP it really had (skipped if unknown).
+    3. Cleans local session state — only once the stop is confirmed.
     """
     clean_imsi = re.sub(r"\D", "", str(imsi))
     ran = get_ueransim_client()
     client = get_current_client()
+    rec = get_reconciler()
 
-    # 1. Stop radio process
-    ran.stop_ue(clean_imsi)
-
-    # 2. Lookup last IP for clean SCM deregistration
+    # 1. Determine the IP the UE really had BEFORE stopping it
+    sim = _sim_state(clean_imsi)
+    radio_st = ran.get_ue_status(clean_imsi)
     active_sess = load_active_sessions().get(clean_imsi, {})
-    last_ip = active_sess.get("ipv4_addr") or load_sim_metadata().get(clean_imsi, {}).get("last_ip", "10.45.0.2")
+    last_ip = (sim.get("live_ip")
+               or (radio_st.get("assigned_ip") if radio_st.get("radio_state") == "active" else None)
+               or active_sess.get("ipv4_addr")
+               or load_sim_metadata().get(clean_imsi, {}).get("last_ip"))
     imei = active_sess.get("imei", f"35412809{clean_imsi[-7:]}")
     apn = active_sess.get("apn", "internet")
 
-    session = UESession(
-        imsi=clean_imsi,
-        imei=imei,
-        apn=apn,
-        ip_type="IPv4",
-        ipv4_addr=last_ip,
-    )
+    # 2. Stop radio process
+    stop = ran.stop_ue_detail(clean_imsi)
+    rec.clear_starting(clean_imsi)
+    if not stop.get("success"):
+        rec.refresh_now()
+        return {
+            "success": False,
+            "imsi": clean_imsi,
+            "error": stop.get("error") or "stop not confirmed by RAN agent",
+            "steps": stop.get("steps", []),
+            "message": f"Power Off failed for {clean_imsi}: {stop.get('error') or 'stop not confirmed'}. State left untouched.",
+        }
+
+    # 3. SCM deregistration with the real IP only
     scm_res = None
-    try:
-        scm_res = client.deregister_ue_session(session)
-    except Exception as s_err:
-        scm_res = {"status_code": 200, "warning": str(s_err), "fallback": True}
+    scm_ok = False
+    if last_ip:
+        session = UESession(imsi=clean_imsi, imei=imei, apn=apn, ip_type="IPv4", ipv4_addr=last_ip)
+        try:
+            scm_res = client.deregister_ue_session(session)
+            scm_ok = True
+        except Exception as s_err:
+            scm_res = {"error": str(s_err)}
+            logger.warning("event=detach.scm_deregister_failed imsi=%s ip=%s error=%r", clean_imsi, last_ip, str(s_err))
+    else:
+        scm_res = {"skipped": "no known IP for this IMSI — nothing to deregister"}
 
     delete_single_active_session(clean_imsi)
-    update_single_sim_metadata(clean_imsi, {"status": "Inactive"})
+    update_single_sim_metadata(clean_imsi, {"status": "Inactive", "last_ip": None})
+    sim_after = (rec.refresh_now().get("sims") or {}).get(clean_imsi, {})
 
     return {
         "success": True,
         "imsi": clean_imsi,
         "released_ip": last_ip,
+        "steps": stop.get("steps", []),
+        "scm_deregistered": scm_ok,
         "scm_response": scm_res,
-        "message": f"Detached 5G UE {clean_imsi} -> SCM Session Deregistered 🔴",
+        "sync_status": sim_after.get("status", "unknown"),
+        "message": (f"Powered off 5G UE {clean_imsi}"
+                    + (f" -> SCM session {last_ip} deregistered 🔴" if scm_ok else
+                       (" (no IP known, SCM untouched)" if not last_ip else " -> ⚠️ SCM deregistration FAILED"))),
     }
 
 
@@ -894,42 +1092,50 @@ def clean_orphan_tun_interfaces():
 
 @app.post("/api/5g/fleet/power-off")
 def fleet_power_off():
-    """Stop all active radio UEs, purge all TUN interfaces, and mark SIMs inactive."""
+    """Stop all agent-managed radio UEs (graceful), each removing only its own TUN; mark SIMs inactive."""
     ran = get_ueransim_client()
-    ran.stop_all_ues()
+    ok = ran.stop_all_ues()
+    snap = get_reconciler().refresh_now()
+    if not ok:
+        return {
+            "success": False,
+            "message": "Fleet power-off not confirmed by the RAN agent — local state left untouched",
+            "state_summary": snap.get("summary", {}),
+        }
     save_active_sessions({})
-    
+
     # Update local metadata to Inactive
     meta = load_sim_metadata()
     for imsi, item in meta.items():
         item["status"] = "Inactive"
+        item["last_ip"] = None
     save_sim_metadata(meta)
 
     return {
         "success": True,
-        "message": "All 5G fleet devices powered off and network interfaces cleaned 🔴",
+        "state_summary": snap.get("summary", {}),
+        "message": "All 5G fleet devices powered off 🔴",
     }
 
 
 @app.post("/api/5g/fleet/power-on")
 def fleet_power_on(payload: Optional[FleetActionModel] = None):
     """
-    Simulate mass fleet bootup:
-    1. Purges any stale orphan interfaces.
-    2. Sequentially powers on registered UEs (creating unique TUNs & unique Core IPs).
-    3. Auto-registers all sessions in Prisma Access SCM.
+    Mass fleet bootup:
+    1. Purges orphan TUN interfaces (agent refuses if ownership is ambiguous).
+    2. Sequentially powers on SCM-registered UEs (each gets its own TUN + Core IP).
+    3. Registers each session in SCM with its real TUN IP.
     """
     ran = get_ueransim_client()
     ran.cleanup_orphan_tuns()
 
     client = get_current_client()
     tsg_id = payload.tsg_id if payload else None
-    resp = client.list_tenant_ues(tsg_id=tsg_id)
-    models = resp.get("models", [])
-    
-    if not models:
-        # Check local cache
-        models = [CreateUEModel(**u) for u in synthesize_fallback_ues(tsg_id=tsg_id)]
+    try:
+        models = client.list_tenant_ues(tsg_id=tsg_id, strict=True).get("models", [])
+    except Exception as e:
+        return {"success": False, "total_attempted": 0, "active_count": 0, "results": [],
+                "message": f"Cannot read SIM inventory from SCM: {e}"}
 
     results = []
     # Boot up to 10 UEs
@@ -937,14 +1143,17 @@ def fleet_power_on(payload: Optional[FleetActionModel] = None):
         imsi = str(m.imsi)
         try:
             res = attach_ue_dynamic(imsi)
+            ok = bool(res.get("success"))
             results.append({
                 "imsi": imsi,
-                "status": "Active",
+                "status": "Active" if ok else "Failed",
                 "allocated_ip": res.get("allocated_ip"),
                 "interface": res.get("interface"),
-                "success": True,
+                "reason": None if ok else res.get("reason"),
+                "success": ok,
             })
         except Exception as e:
+            logger.exception("event=fleet.power_on_error imsi=%s", imsi)
             results.append({
                 "imsi": imsi,
                 "status": "Error",
@@ -952,12 +1161,13 @@ def fleet_power_on(payload: Optional[FleetActionModel] = None):
                 "success": False,
             })
 
+    active = sum(1 for r in results if r.get("success"))
     return {
-        "success": True,
+        "success": active > 0 or not results,
         "total_attempted": len(results),
-        "active_count": sum(1 for r in results if r.get("success")),
+        "active_count": active,
         "results": results,
-        "message": f"Successfully powered on {sum(1 for r in results if r.get('success'))} fleet device(s) with unique dynamic IPs 🟢",
+        "message": f"Powered on {active}/{len(results)} fleet device(s)" + (" 🟢" if active == len(results) else " ⚠️"),
     }
 
 
@@ -1462,7 +1672,7 @@ def list_ues(tsg_id: Optional[str] = None):
         models = resp.get("models", [])
         
         if not models and client.config.standalone_mode:
-            fallback_data = synthesize_fallback_ues(tsg_id=tsg_id)
+            fallback_data = _overlay_live_state(synthesize_fallback_ues(tsg_id=tsg_id))
             return {
                 "success": True,
                 "total_items": len(fallback_data),
@@ -1471,53 +1681,21 @@ def list_ues(tsg_id: Optional[str] = None):
                 "source": "offline_cache",
             }
 
-        # Collect live sessions from Open5GS Core & UERANSIM
-        core_sessions = {}
-        try:
-            core = get_open5gs_client()
-            for item in core.get_smf_pdu_info():
-                supi = str(item.get("supi", "")).replace("imsi-", "")
-                for pdu in item.get("pdu", []):
-                    if pdu.get("ipv4") and pdu.get("pdu_state") != "inactive":
-                        core_sessions[supi] = {
-                            "ipv4_addr": pdu.get("ipv4"),
-                            "status": "Active",
-                            "region": "europe-west9",
-                            "tenant_status": "Yes",
-                        }
-        except Exception as e:
-            logger.debug("Could not query Open5GS SMF sessions for list_ues: %s", e)
-
-        try:
-            ran = get_ueransim_client()
-            for ue in ran.list_active_ues():
-                u_imsi = str(ue.get("imsi", ""))
-                st = ran.get_ue_status(u_imsi)
-                if st.get("assigned_ip"):
-                    core_sessions[u_imsi] = {
-                        "ipv4_addr": st.get("assigned_ip"),
-                        "status": "Active",
-                        "region": "europe-west9",
-                        "tenant_status": "Yes",
-                    }
-        except Exception as e:
-            logger.debug("Could not query UERANSIM status for list_ues: %s", e)
+        # Live state comes ONLY from the reconciled snapshot (agent TUN + AMF + SMF agree).
+        sims = (get_reconciler().snapshot().get("sims") or {})
 
         # Convert models to rich json list
         res_data = []
         for m in models:
             imsi_str = str(m.imsi)
             imsi_clean = re.sub(r"\D", "", imsi_str)
-            imei_str = str(m.imei) if m.imei else ""
+            sim = sims.get(imsi_clean, {})
+            is_active = sim.get("status") == "active"
+            ipv4 = sim.get("live_ip") if is_active else None
+            status = "Active" if is_active else "Inactive"
+            region = m.region or ("europe-west9" if is_active else None)
+            tenant_status = "Yes" if is_active else (m.tenant_status or "No")
 
-            live_core_sess = core_sessions.get(imsi_clean) or core_sessions.get(imsi_str)
-            sess_info = live_core_sess or active_sess.get(imsi_str) or (active_sess.get(imei_str) if imei_str else None)
-
-            ipv4 = sess_info["ipv4_addr"] if sess_info else None
-            status = "Active" if (sess_info and sess_info.get("status") == "Active") else "Inactive"
-            region = m.region or (sess_info["region"] if sess_info else ("europe-west9" if status == "Active" else None))
-            tenant_status = "Yes" if status == "Active" else (m.tenant_status or "No")
-            
             meta = local_meta.get(imsi_str, {}) or local_meta.get(imsi_clean, {})
 
             res_data.append({
@@ -1539,7 +1717,10 @@ def list_ues(tsg_id: Optional[str] = None):
                 "device_type": meta.get("device_type"),
                 "custom_label": meta.get("custom_label"),
                 "icon": meta.get("icon"),
-                "last_ip": ipv4 or meta.get("last_ip") or (sess_info.get("ipv4_addr") if sess_info else None),
+                "last_ip": ipv4,
+                "interface": sim.get("interface") if is_active else None,
+                "sync_status": sim.get("status", "unknown"),
+                "sync_reason": sim.get("reason"),
             })
 
         save_cached_ues(res_data)
@@ -1550,7 +1731,7 @@ def list_ues(tsg_id: Optional[str] = None):
             "fallback": False,
         }
     except Exception as exc:
-        fallback_data = synthesize_fallback_ues(tsg_id=tsg_id)
+        fallback_data = _overlay_live_state(synthesize_fallback_ues(tsg_id=tsg_id))
         return {
             "success": True,
             "total_items": len(fallback_data),
@@ -1560,6 +1741,24 @@ def list_ues(tsg_id: Optional[str] = None):
             "cloud_status": "503_upstream_unavailable",
             "cloud_error": str(exc),
         }
+
+
+def _overlay_live_state(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Replace any cached IP/status with the reconciled live state (no ghost IPs from cache files)."""
+    try:
+        sims = get_reconciler().snapshot().get("sims") or {}
+    except Exception:
+        sims = {}
+    for r in rows:
+        sim = sims.get(re.sub(r"\D", "", str(r.get("imsi"))), {})
+        active = sim.get("status") == "active"
+        r["ipv4_addr"] = sim.get("live_ip") if active else None
+        r["last_ip"] = r["ipv4_addr"]
+        r["status"] = "Active" if active else "Inactive"
+        r["interface"] = sim.get("interface") if active else None
+        r["sync_status"] = sim.get("status", "unknown")
+        r["sync_reason"] = sim.get("reason")
+    return rows
 
 
 @app.post("/api/ues")
@@ -1643,13 +1842,22 @@ def create_ue(payload: CreateUEModel):
                     "error": str(s_exc),
                 }
 
-        # 5. Real 5G Core MongoDB provisioning & UERANSIM process startup
+        # 5. Provision 5G Core subscriber in Open5GS MongoDB (credentials only — no radio start)
+        #    UERANSIM is launched separately via POST /api/5g/ue/attach/{imsi} (Power On step)
         core_provision_result = {"provisioned": False}
         ran_status = {"running": False}
-        dynamic_ip = payload.session_ip
         try:
             vertical_id = payload.vertical or "smart_camera"
             creds = generate_device_credentials(vertical_id, custom_imsi=clean_imsi, custom_imei=clean_imei)
+
+            # Persist credentials so Power On (attach) can reuse exact same K/OP
+            update_single_sim_metadata(clean_imsi, {
+                "k": creds.get("k", "465B5CE8B199B49FAA5F0A2EE238A6BC"),
+                "op": creds.get("op", "E8ED289DEBA952E4283B54E88E6183CA"),
+                "op_type": creds.get("op_type", "OP"),
+                "status": "Inactive",  # Device is OFF until Power On
+            })
+
             endpoint = OrchestratedEndpoint(
                 imsi=clean_imsi,
                 imei=clean_imei,
@@ -1668,63 +1876,31 @@ def create_ue(payload: CreateUEModel):
                 qos=QoSConfig(five_qi=9, ambr_dl_mbps=100, ambr_ul_mbps=50),
             )
             core = get_open5gs_client()
-            ran = get_ueransim_client()
+            # Provision subscriber in 5G Core MongoDB ONLY — no radio process
             core.create_subscriber(endpoint)
             core_provision_result = {"provisioned": True, "imsi": clean_imsi}
-            ran_status = ran.start_ue(endpoint)
-
-            # Auto-extract dynamically allocated Core IP and register to SCM
-            if not dynamic_ip:
-                time.sleep(1.2)
-                st = ran.get_ue_status(clean_imsi)
-                dynamic_ip = st.get("assigned_ip")
-                if not dynamic_ip:
-                    pdu_sess = core.poll_pdu_session(clean_imsi, timeout_sec=3)
-                    if pdu_sess and pdu_sess.get("ipv4"):
-                        dynamic_ip = pdu_sess["ipv4"]
-
-            if dynamic_ip:
-                try:
-                    sess = UESession(
-                        imsi=clean_imsi,
-                        imei=clean_imei,
-                        apn=payload.apn or "internet",
-                        ip_type="IPv4",
-                        ipv4_addr=dynamic_ip,
-                    )
-                    sess_resp = client.register_ue_session(sess)
-                    update_single_sim_metadata(clean_imsi, {"last_ip": dynamic_ip, "status": "Active"})
-                    update_single_active_session(clean_imsi, {
-                        "ipv4_addr": dynamic_ip,
-                        "imei": clean_imei,
-                        "apn": payload.apn or "internet",
-                        "status": "Active",
-                        "region": "europe-west9",
-                        "tenant_status": "Yes",
-                    })
-                    session_result = {
-                        "registered": True,
-                        "status_code": sess_resp.get("status_code", 200),
-                        "ip": dynamic_ip,
-                        "core_dynamic": True,
-                    }
-                except Exception as s_exc:
-                    logger.warning("Could not auto-register dynamic SCM session: %s", s_exc)
+            # UERANSIM (radio) is started on Power On → POST /api/5g/ue/attach/{imsi}
 
         except Exception as c_err:
+            logger.warning("5G Core provisioning warning: %s", c_err)
             core_provision_result = {"provisioned": False, "error": str(c_err)}
+
 
         return {
             "success": True,
             "identity_id": created_id,
             "data": data_obj,
             "group_assignment": group_assign_result,
-            "session_result": session_result,
-            "allocated_ip": dynamic_ip,
             "open5gs": core_provision_result,
-            "ueransim": ran_status,
-            "message": f"SIM {payload.imsi} registered in Core 5G & SASE (IP: {dynamic_ip or 'Allocating...'})",
+            "status": "Inactive",
+            "message": (
+                f"Device {payload.imsi} created — "
+                f"5G Core {'✅' if core_provision_result.get('provisioned') else '⚠️ (fallback)'} | "
+                f"SCM Prisma Access ✅ — "
+                f"Click ⚡ Power On to start the device."
+            ),
         }
+
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
@@ -2382,76 +2558,92 @@ def run_lifecycle():
     except Exception as exc:
         log_step(2, "Open5GS 5G Core MongoDB Provisioning", "warning", f"MongoDB notice: {exc}")
 
-    # Step 3: UERANSIM RAN Deployment & Daemon Launch
+    # Step 3: UERANSIM RAN Deployment & Daemon Launch (agent returns once the TUN is up or failed)
     s3_start = time.time()
+    ran_status: Dict[str, Any] = {}
     try:
         if created_endpoint:
+            get_reconciler().mark_starting(test_imsi)
             ran_status = ran.start_ue(created_endpoint)
-            log_step(3, "UERANSIM Radio Deployment & Attach", "success",
-                     f"Generated YAML and initialized nr-ue daemon (PID: {ran_status.get('pid', 'active')})",
+            ok3 = bool(ran_status.get("success")) and ran_status.get("radio_state") == "active"
+            log_step(3, "UERANSIM Radio Deployment & Attach", "success" if ok3 else "error",
+                     (f"nr-ue PID {ran_status.get('pid')} up, kernel {ran_status.get('interface')} = {ran_status.get('assigned_ip')}"
+                      if ok3 else f"Radio attach failed: {ran_status.get('error') or ran_status.get('reason')}"),
                      int((time.time() - s3_start) * 1000))
         else:
             log_step(3, "UERANSIM Radio Deployment & Attach", "warning", "Endpoint skipped")
     except Exception as exc:
-        log_step(3, "UERANSIM Radio Deployment & Attach", "warning", f"Radio attach notice: {exc}")
+        log_step(3, "UERANSIM Radio Deployment & Attach", "error", f"Radio attach error: {exc}")
 
-    # Step 4: Open5GS SMF PDU Session & IP Allocation
+    # Step 4: Open5GS SMF PDU Session & IP Allocation (must match the kernel TUN IP)
     s4_start = time.time()
-    allocated_ip = "10.45.0.195"
+    allocated_ip = ran_status.get("assigned_ip") if ran_status.get("radio_state") == "active" else None
     try:
-        session_info = core.poll_pdu_session(test_imsi, timeout_sec=6)
-        if session_info and session_info.get("ipv4"):
-            allocated_ip = session_info["ipv4"]
+        session_info = core.poll_pdu_session(test_imsi, timeout_sec=6) if allocated_ip else None
+        smf_ip = (session_info or {}).get("ipv4")
+        if allocated_ip and smf_ip == allocated_ip:
             log_step(4, "SMF 5G PDU Session & IP Allocation", "success",
-                     f"Active PDU session confirmed! Dynamic IPv4 allocated: {allocated_ip} (SST: {session_info.get('sst', 1)})",
+                     f"SMF PDU session confirmed: {smf_ip} == kernel TUN IP (SST: {session_info.get('sst', 1)})",
+                     int((time.time() - s4_start) * 1000))
+        elif allocated_ip:
+            log_step(4, "SMF 5G PDU Session & IP Allocation", "error",
+                     f"Mismatch: kernel TUN IP {allocated_ip} vs SMF {smf_ip or 'no session'}",
                      int((time.time() - s4_start) * 1000))
         else:
-            log_step(4, "SMF 5G PDU Session & IP Allocation", "success",
-                     f"Session registered. Static fallback IP: {allocated_ip}",
-                     int((time.time() - s4_start) * 1000))
+            log_step(4, "SMF 5G PDU Session & IP Allocation", "error",
+                     "No IP: radio did not reach PDU session / TUN up", int((time.time() - s4_start) * 1000))
     except Exception as exc:
-        log_step(4, "SMF 5G PDU Session & IP Allocation", "warning", f"SMF polling notice: {exc}")
+        log_step(4, "SMF 5G PDU Session & IP Allocation", "error", f"SMF polling error: {exc}")
 
-    # Step 5: Linux Kernel Interface & 5G Tunnel Ping
+    # Step 5: Linux Kernel Interface & 5G Tunnel Ping (through THIS IMSI's own TUN, via the agent)
     s5_start = time.time()
-    try:
-        tun_ifaces = ran.get_active_tun_interfaces()
-        matching_tun = next((t["interface"] for t in tun_ifaces if t.get("ip") == allocated_ip), (tun_ifaces[0]["interface"] if tun_ifaces else "uesimtun0"))
-        ping_res = ran._exec_command(f"ping -c 2 -I {matching_tun} 10.45.0.1 2>&1 || true")
-        ping_ok = "0% packet loss" in ping_res or "2 packets received" in ping_res or "1 packets received" in ping_res
-        log_step(5, "Linux Kernel TUN & 5G Data Plane Ping", "success" if ping_ok else "warning",
-                 f"Tunnel {matching_tun} active! ICMP ping to 10.45.0.1: {'100% SUCCESS (RTT < 2ms)' if ping_ok else 'Simulated data plane ready'}",
-                 int((time.time() - s5_start) * 1000))
-    except Exception as exc:
-        log_step(5, "Linux Kernel TUN & 5G Data Plane Ping", "warning", f"Ping notice: {exc}")
+    if allocated_ip:
+        try:
+            ping = ran.ping(test_imsi, target="10.45.0.1")
+            ping_ok = bool(ping.get("success")) and ping.get("status") == "SUCCESS"
+            log_step(5, "Linux Kernel TUN & 5G Data Plane Ping", "success" if ping_ok else "error",
+                     (f"{ping.get('interface')} -> 10.45.0.1: loss {ping.get('packet_loss')}, avg {ping.get('latency_ms')} ms"
+                      if ping_ok else f"Ping failed: {ping.get('error') or ping.get('packet_loss') or 'no reply'}"),
+                     int((time.time() - s5_start) * 1000))
+        except Exception as exc:
+            log_step(5, "Linux Kernel TUN & 5G Data Plane Ping", "error", f"Ping error: {exc}")
+    else:
+        log_step(5, "Linux Kernel TUN & 5G Data Plane Ping", "warning", "Skipped: no TUN interface")
 
-    # Step 6: Prisma SASE Session Registration & Binding
+    # Step 6: Prisma SASE Session Registration & Binding (real IP only)
     s6_start = time.time()
     created_id = None
     try:
         create_resp = client.create_tenant_ue(imsi=test_imsi, imei=test_imei, apn=test_apn)
         created_id = create_resp.get("data", {}).get("id") or create_resp.get("data", {}).get("identity_id") or test_imsi
-        sess = UESession(imsi=test_imsi, imei=test_imei, apn=test_apn, ip_type="IPv4", ipv4_addr=allocated_ip)
-        sess_resp = client.register_ue_session(sess)
-        log_step(6, "Prisma SASE Zero-Trust Session Binding", "success",
-                 f"Bound 5G subscriber IP {allocated_ip} (IMSI: {test_imsi}) to SASE Security Policy Group (HTTP {sess_resp.get('status_code', 200)})",
-                 int((time.time() - s6_start) * 1000))
+        if allocated_ip:
+            sess = UESession(imsi=test_imsi, imei=test_imei, apn=test_apn, ip_type="IPv4", ipv4_addr=allocated_ip)
+            client.register_ue_session(sess)
+            log_step(6, "Prisma SASE Zero-Trust Session Binding", "success",
+                     f"Bound 5G subscriber IP {allocated_ip} (IMSI: {test_imsi}) to SASE Security Policy Group",
+                     int((time.time() - s6_start) * 1000))
+        else:
+            log_step(6, "Prisma SASE Zero-Trust Session Binding", "warning",
+                     "SIM created in SCM; session NOT registered (no real IP)", int((time.time() - s6_start) * 1000))
     except Exception as exc:
-        log_step(6, "Prisma SASE Zero-Trust Session Binding", "warning", f"SASE binding notice: {exc}")
+        log_step(6, "Prisma SASE Zero-Trust Session Binding", "error", f"SASE binding error: {exc}")
 
     # Step 7: SASE Session Deregister & UERANSIM Stop
     s7_start = time.time()
     try:
-        sess = UESession(imsi=test_imsi, imei=test_imei, apn=test_apn, ip_type="IPv4", ipv4_addr=allocated_ip)
-        client.deregister_ue_session(sess)
+        if allocated_ip:
+            sess = UESession(imsi=test_imsi, imei=test_imei, apn=test_apn, ip_type="IPv4", ipv4_addr=allocated_ip)
+            client.deregister_ue_session(sess)
         if created_id:
             client.delete_tenant_ue(created_id)
-        ran.stop_ue(test_imsi)
-        log_step(7, "5G Session Deregister & Radio Shutdown", "success",
-                 f"Terminated 5G subscriber session, released IP {allocated_ip}, stopped nr-ue daemon",
+        stop = ran.stop_ue_detail(test_imsi)
+        get_reconciler().clear_starting(test_imsi)
+        log_step(7, "5G Session Deregister & Radio Shutdown", "success" if stop.get("success") else "error",
+                 (f"Session deregistered, released {allocated_ip or 'no IP'}, nr-ue stopped ({'; '.join(stop.get('steps', []))})"
+                  if stop.get("success") else f"Radio stop not confirmed: {stop.get('error')}"),
                  int((time.time() - s7_start) * 1000))
     except Exception as exc:
-        log_step(7, "5G Session Deregister & Radio Shutdown", "warning", f"Termination notice: {exc}")
+        log_step(7, "5G Session Deregister & Radio Shutdown", "error", f"Termination error: {exc}")
 
     # Step 8: Open5GS MongoDB Cleanup & Clean Verification
     s8_start = time.time()

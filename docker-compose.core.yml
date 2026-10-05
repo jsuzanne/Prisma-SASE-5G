@@ -3,10 +3,13 @@ services:
     image: jsuzanne/prisma-5g-sase:5g-orchestrator
     container_name: prisma-5g-core
     network_mode: host
+    env_file:
+      - ./agent.env   # AGENT_TOKEN=... (same value as on the RAN VM, chmod 600)
     environment:
       - PYTHONUNBUFFERED=1
       - ROLE=core
       - PORT=8080
+      - DEBUG=${DEBUG:-false}
       - MONGO_URI=mongodb://127.0.0.1:27017
       - SMF_URL=http://127.0.0.4:9090
       - AMF_URL=http://127.0.0.5:9090

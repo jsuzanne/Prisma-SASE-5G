@@ -5776,10 +5776,12 @@
                 const groups = sim.groups || [];
                 const groupBadges = getDynamicGroupBadges(groups, identityId);
 
-                const isActive = sim.status === 'Active' || Boolean(sim.ipv4_addr);
-                const ipDisplay = sim.ipv4_addr
+                const isActive = sim.status === 'Active';
+                // Show IP with green pulse ONLY when truly Active
+                // Inactive SIMs show ● Offline even if they have a cached IP
+                const ipDisplay = (isActive && sim.ipv4_addr)
                     ? `<div class="flex items-center gap-1.5 font-mono text-cyan-400 font-semibold"><span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> ${sim.ipv4_addr}</div>`
-                    : `<div class="flex items-center gap-1.5 text-gray-500 font-sans text-[11px]"><span class="w-1.5 h-1.5 rounded-full bg-red-500/60"></span> Inactive</div>`;
+                    : `<div class="flex items-center gap-1.5 text-gray-500 font-sans text-[11px]"><span class="w-1.5 h-1.5 rounded-full bg-red-500/60"></span> Offline</div>`;
 
                 if (inventoryViewMode === 'enriched') {
                     // Rich Business / IoT Fleet View
@@ -5836,15 +5838,15 @@
                                     <i data-lucide="edit-3" class="w-3.5 h-3.5 inline"></i> Edit
                                 </button>
                                 ${isActive ? `
-                                    <button onclick="openTrafficModal('${sim.imsi}', '${sim.ipv4_addr || ''}')" class="px-2.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-xs transition cursor-pointer inline-flex items-center gap-1" title="Generate Live Traffic through 5G Tunnel & Test Prisma SASE Security">
+                                    <button onclick="openTrafficModal('${sim.imsi}', '${sim.ipv4_addr || ''}')" class="px-2.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-xs transition cursor-pointer inline-flex items-center gap-1" title="Generate Live 5G Traffic & Test Prisma SASE Security">
                                         <i data-lucide="activity" class="w-3.5 h-3.5 inline"></i> Traffic
                                     </button>
-                                    <button onclick="handleQuickDetachSim('${sim.imsi}')" class="px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-xs transition cursor-pointer" title="Disconnect / Detach 5G Session (Release IP from SCM)">
-                                        <i data-lucide="power-off" class="w-3.5 h-3.5 inline"></i> Detach
+                                    <button onclick="handleQuickDetachSim('${sim.imsi}')" class="w-7 h-7 rounded-lg bg-rose-500/15 hover:bg-rose-500/35 text-rose-400 border border-rose-500/30 transition cursor-pointer inline-flex items-center justify-center" title="Power Off — Stop 5G Radio & Release Session">
+                                        <i data-lucide="power" class="w-3.5 h-3.5"></i>
                                     </button>
                                 ` : `
-                                    <button onclick="handleQuickAttachSim('${sim.imsi}')" class="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 text-xs transition cursor-pointer" title="Auto-Attach 5G Radio (Extract Core Dynamic IP -> Register to SCM)">
-                                        <i data-lucide="zap" class="w-3.5 h-3.5 inline"></i> Attach
+                                    <button onclick="handleQuickAttachSim('${sim.imsi}')" class="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 text-xs transition cursor-pointer inline-flex items-center gap-1" title="Power On — Boot 5G Radio & Register to SCM">
+                                        <i data-lucide="zap" class="w-3.5 h-3.5 inline"></i> Power On
                                     </button>
                                 `}
                                 <button onclick="handleDeleteSIM('${identityId}', '${sim.imsi}')" class="px-2 py-1 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs transition" title="Delete SIM">
@@ -5890,15 +5892,15 @@
                                     <i data-lucide="edit-3" class="w-3.5 h-3.5 inline"></i> Edit
                                 </button>
                                 ${isActive ? `
-                                    <button onclick="openTrafficModal('${sim.imsi}', '${sim.ipv4_addr || ''}')" class="px-2.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-xs transition cursor-pointer inline-flex items-center gap-1" title="Generate Live Traffic through 5G Tunnel & Test Prisma SASE Security">
+                                    <button onclick="openTrafficModal('${sim.imsi}', '${sim.ipv4_addr || ''}')" class="px-2.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-xs transition cursor-pointer inline-flex items-center gap-1" title="Generate Live 5G Traffic & Test Prisma SASE Security">
                                         <i data-lucide="activity" class="w-3.5 h-3.5 inline"></i> Traffic
                                     </button>
-                                    <button onclick="handleQuickDetachSim('${sim.imsi}')" class="px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-xs transition cursor-pointer" title="Disconnect / Detach 5G Session (Release IP from SCM)">
-                                        <i data-lucide="power-off" class="w-3.5 h-3.5 inline"></i> Detach
+                                    <button onclick="handleQuickDetachSim('${sim.imsi}')" class="w-7 h-7 rounded-lg bg-rose-500/15 hover:bg-rose-500/35 text-rose-400 border border-rose-500/30 transition cursor-pointer inline-flex items-center justify-center" title="Power Off — Stop 5G Radio & Release Session">
+                                        <i data-lucide="power" class="w-3.5 h-3.5"></i>
                                     </button>
                                 ` : `
-                                    <button onclick="handleQuickAttachSim('${sim.imsi}')" class="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 text-xs transition cursor-pointer" title="Auto-Attach 5G Radio (Extract Core Dynamic IP -> Register to SCM)">
-                                        <i data-lucide="zap" class="w-3.5 h-3.5 inline"></i> Attach
+                                    <button onclick="handleQuickAttachSim('${sim.imsi}')" class="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 text-xs transition cursor-pointer inline-flex items-center gap-1" title="Power On — Boot 5G Radio & Register to SCM">
+                                        <i data-lucide="zap" class="w-3.5 h-3.5 inline"></i> Power On
                                     </button>
                                 `}
                                 <button onclick="handleDeleteSIM('${identityId}', '${sim.imsi}')" class="px-2 py-1 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs transition" title="Delete SIM">
@@ -6804,17 +6806,14 @@
                 });
                 const data = await res.json();
                 if (res.ok && data.success) {
-                    const ueransimInfo = data.ueransim || {};
+                    const core5g = data.open5gs?.provisioned ? '5G Core ✅' : '5G Core ⚠️';
                     showToast(
-                        "5G SIM Registered & Attached!",
-                        `Open5GS MongoDB: Provisioned 🟢 | UERANSIM PID: ${ueransimInfo.pid || 'Active'} | TUN: ${ueransimInfo.assigned_ip || 'Auto'}`
+                        "Device Created",
+                        `${core5g} | SCM Prisma Access ✅ — Click ⚡ Power On to start the device.`
                     );
                     closeAddSimModal();
                     await fetchSIMs();
                     await fetchGroups();
-                    if (typeof fetch5GCoreMonitoring === 'function') fetch5GCoreMonitoring();
-                    // Open Dual-Screen 5G Inspector immediately to view synchronized logs!
-                    openUeLogsModal(imsi);
                 } else {
                     showToast("Failed to Register SIM", data.detail || data.error || "Unknown error", true);
                 }
@@ -7801,7 +7800,7 @@
             }
 
             tbody.innerHTML = sims.map(s => {
-                const isActive = s.status === 'Active' || Boolean(s.ipv4_addr);
+                const isActive = s.status === 'Active';
                 const statusBadge = isActive
                     ? `<span class="inline-flex items-center gap-1.5 text-emerald-400 font-sans font-medium"><span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Active</span>`
                     : `<span class="inline-flex items-center gap-1.5 text-red-400 font-sans font-medium"><span class="w-2 h-2 rounded-full bg-red-400"></span> Inactive</span>`;

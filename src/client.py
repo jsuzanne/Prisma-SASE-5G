@@ -228,10 +228,14 @@ class Prisma5GClient:
         filter_query: Optional[str] = None,
         order_query: Optional[str] = None,
         all_tenants: bool = True,
+        strict: bool = False,
     ) -> Dict[str, Any]:
         """List and search Tenant UE / SIM mappings across one or all child tenants.
         
         API: POST /mt/manage/5g/tenantUEInfo/list
+
+        strict=True: raise on any SCM error instead of silently returning an empty
+        list (used by the reconciler, which must distinguish "no SIMs" from "SCM down").
         """
         configured_tsg = str(self.config.tsg_id) if self.config.tsg_id else None
         target_tsg = str(tsg_id) if tsg_id else (configured_tsg or ("1965438697" if self.config.standalone_mode else None))
@@ -253,6 +257,8 @@ class Prisma5GClient:
             if resp.status_code == 204 or not resp.text or not resp.text.strip():
                 return []
             if resp.status_code not in (200, 201):
+                if strict:
+                    raise RuntimeError(f"SCM tenantUEInfo/list tsg={tid} HTTP {resp.status_code}: {resp.text[:200]}")
                 return []
 
             try:
@@ -262,6 +268,8 @@ class Prisma5GClient:
                         item["tenant_name"] = tenant_name
                 return res_data
             except Exception:
+                if strict:
+                    raise
                 return []
 
         # If explicit tsg_id passed, query only that TSG
@@ -288,7 +296,8 @@ class Prisma5GClient:
                         t_items = future.result()
                         all_items.extend(t_items)
                     except Exception:
-                        pass
+                        if strict:
+                            raise
         else:
             all_items = _query_single_tsg(target_tsg)
 

@@ -47,6 +47,16 @@ class TestParsers(unittest.TestCase):
         self.assertEqual(r["phase"], "rejected")
         self.assertIn("FIVEG_SERVICES_NOT_ALLOWED", r["last_error"])
 
+    def test_parse_log_auth_mac_failure_seen_on_lab(self):
+        log = ("[nas] [debug] Authentication Request received\n"
+               "[nas] [error] AUTN validation MAC mismatch. expected [99D87D4F4DB9A7FD] received [902823FF1C3E6FEA]\n"
+               "[nas] [error] Sending Authentication Failure with cause [MAC_FAILURE]\n"
+               "[nas] [error] Authentication Reject received\n")
+        r = parse_ue_log(log)
+        self.assertEqual(r["phase"], "rejected")
+        self.assertIn("5G-AKA authentication failed", r["last_error"])
+        self.assertIn("MAC mismatch", r["last_error"])
+
     def test_parse_log_deregistered_after_tun(self):
         r = parse_ue_log(LOG_ACTIVE + "[nas] [info] De-registration is successful\n")
         self.assertEqual(r["phase"], "deregistered")

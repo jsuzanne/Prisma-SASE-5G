@@ -205,6 +205,11 @@ class Open5GSClient:
         logger.info(f"MongoDB response for IMSI {endpoint.imsi}: {out}")
         return True
 
+    # Alias for create_subscriber (backward compat)
+    def add_subscriber(self, endpoint: "OrchestratedEndpoint") -> bool:  # noqa: F821
+        """Alias for create_subscriber — upsert subscriber into MongoDB."""
+        return self.create_subscriber(endpoint)
+
     def get_subscriber(self, imsi: str) -> Optional[Dict[str, Any]]:
         """Retrieve a subscriber document by IMSI."""
         if self.mock_mode:

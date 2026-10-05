@@ -121,7 +121,14 @@ def parse_ue_log(text: str) -> Dict[str, Any]:
     if tun_matches:
         result["interface"], result["ip"] = tun_matches[-1]
 
-    if "FIVEG_SERVICES_NOT_ALLOWED" in text or "Registration reject" in text or "registration failed" in text.lower():
+    auth_fail = ("AUTN validation" in text or "Authentication Reject" in text
+                 or "MAC_FAILURE" in text or "failing the authentication check" in text)
+    if auth_fail:
+        result["phase"] = "rejected"
+        mm = re.search(r"AUTN validation ([^\n]+)", text)
+        result["last_error"] = ("5G-AKA authentication failed (K/OPc in UE YAML != MongoDB subscriber)"
+                                + (f": AUTN validation {mm.group(1).strip()}" if mm else ""))
+    elif "FIVEG_SERVICES_NOT_ALLOWED" in text or "Registration reject" in text or "registration failed" in text.lower():
         result["phase"] = "rejected"
         m = re.findall(r"\[error\]\s*(.+)", text)
         result["last_error"] = m[-1].strip() if m else "Registration rejected by core"

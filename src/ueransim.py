@@ -1,11 +1,19 @@
-"""UERANSIM UE Lifecycle and Process Supervisor.
+"""UERANSIM RAN client (core side) — talks to the RAN agent over HTTP.
 
-Supports:
-- Generating 3GPP-compliant UERANSIM UE configuration YAMLs.
-- Spawning and supervising individual nr-ue background processes.
-- Querying session telemetry via nr-cli and Linux network interface inspection.
-- Graceful termination and isolation in config/managed/ directory.
-- Local host execution (ROLE=ue-agent) and remote SSH execution.
+The RAN agent (agent_app.py on the UERANSIM host) is the ONLY component that
+starts/stops nr-ue processes and touches uesimtun interfaces. This client:
+  - generates the 3GPP UE YAML (from the endpoint / MongoDB credentials),
+  - calls the agent REST API (X-Agent-Token over the private 10.10.10.0/24 link),
+  - never guesses: no `uesimtun0` default, no fallback IP, no SSH.
+
+If the agent is unreachable, state is reported as `unknown` (never `stopped`),
+so nothing downstream prunes sessions on a network blip.
+
+Env:
+  UE_AGENT_URL   (default http://10.10.10.2:8081)
+  AGENT_TOKEN    shared secret, same value as on the agent
+  DEBUG=true     verbose logs of every agent call
+  MOCK_MODE=true in-memory simulation for tests / offline demo
 """
 
 from typing import Dict, List, Optional, Any
@@ -13,8 +21,11 @@ import json
 import logging
 import os
 import re
-import subprocess
+import threading
 import time
+import urllib.error
+import urllib.request
+import uuid
 
 from src.models import (
     OrchestratedEndpoint,
@@ -24,61 +35,80 @@ from src.models import (
 )
 
 logger = logging.getLogger("UERANSIMClient")
+DEBUG = os.environ.get("DEBUG", "false").lower() in ("1", "true", "yes", "on")
+
+
+class AgentUnavailable(Exception):
+    """The RAN agent could not be reached or returned an unusable answer."""
+
+
+def _clean(imsi: str) -> str:
+    return re.sub(r"\D", "", str(imsi))
+
+
+def _pdu_status(radio_state: Optional[str]) -> str:
+    return {
+        "active": "PS-ACTIVE",
+        "connecting": "CONNECTING",
+        "failed": "FAILED",
+        "stopped": "STOPPED",
+        "unknown": "UNKNOWN",
+    }.get(radio_state or "unknown", "UNKNOWN")
+
+
+def _compat_status(ue: Dict[str, Any], agent_ok: bool = True) -> Dict[str, Any]:
+    """Map an agent UE record to the legacy status shape used by app.py / the UI."""
+    radio = ue.get("radio_state") if agent_ok else "unknown"
+    return {
+        "imsi": ue.get("imsi"),
+        "running": ue.get("process_alive") if agent_ok else None,
+        "pid": ue.get("pid"),
+        "pdu_status": _pdu_status(radio),
+        "radio_state": radio,
+        "reason": ue.get("reason") if agent_ok else "RAN agent unreachable",
+        "interface": ue.get("interface"),
+        "assigned_ip": ue.get("ip"),
+        "last_error": ue.get("last_error"),
+        "agent_reachable": agent_ok,
+    }
 
 
 class UERANSIMClient:
-    """Manages UERANSIM UE configurations and nr-ue daemon processes."""
+    """Core-side client for the RAN agent (single owner of nr-ue / uesimtun)."""
 
     def __init__(
         self,
-        ueransim_dir: Optional[str] = None,
-        ssh_host: Optional[str] = None,
+        agent_url: Optional[str] = None,
+        agent_token: Optional[str] = None,
         gnb_search_list: Optional[List[str]] = None,
         mcc: str = "999",
         mnc: str = "70",
         mock_mode: bool = False,
+        timeout_s: float = 3.0,
+        telemetry_ttl_s: float = 1.0,
+        # Legacy kwargs accepted for backward compatibility (ignored):
+        ueransim_dir: Optional[str] = None,
+        ssh_host: Optional[str] = None,
     ):
-        self.ueransim_dir = ueransim_dir or os.environ.get("UERANSIM_DIR", "/home/ubuntu/UERANSIM")
-        self.ssh_host = ssh_host or os.environ.get("RAN_SSH_HOST", "jsuzanne@152.236.5.67")
+        self.agent_url = (agent_url or os.environ.get("UE_AGENT_URL", "http://10.10.10.2:8081")).rstrip("/")
+        self.agent_token = agent_token if agent_token is not None else os.environ.get("AGENT_TOKEN", "")
         self.gnb_search_list = gnb_search_list or ["10.10.10.2"]
         self.mcc = mcc
         self.mnc = mnc
         self.mock_mode = mock_mode or (os.environ.get("MOCK_MODE", "false").lower() == "true")
+        self.timeout_s = timeout_s
+        self.telemetry_ttl_s = telemetry_ttl_s
+        self._tele_cache: Optional[Dict[str, Any]] = None
+        self._tele_at = 0.0
+        self._tele_lock = threading.Lock()
         self._mock_processes: Dict[str, Dict[str, Any]] = {}
+        self._mock_next_ip = 2
+        # Kept for UI/log display only
+        self.ssh_host = None
 
-    def _exec_command(self, cmd: str) -> str:
-        """Execute command locally if on RAN host, or over SSH if remote."""
-        if self.mock_mode:
-            return ""
-
-        try:
-            # Local execution on UERANSIM VM
-            if os.environ.get("ROLE") in ("ue-agent", "all") or not self.ssh_host:
-                res = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-                if res.returncode != 0 and "pkill" not in cmd:
-                    logger.warning(f"Local command failed: {res.stderr.strip()}")
-                return res.stdout.strip()
-
-            # Remote execution over SSH
-            ssh_cmd = [
-                "ssh",
-                "-o", "BatchMode=yes",
-                "-o", "ConnectTimeout=5",
-                "-o", "StrictHostKeyChecking=accept-new",
-                self.ssh_host,
-                cmd,
-            ]
-            res = subprocess.run(ssh_cmd, capture_output=True, text=True)
-            if res.returncode != 0 and "pkill" not in cmd:
-                logger.warning(f"SSH command failed on {self.ssh_host}: {res.stderr.strip()}")
-            return res.stdout.strip()
-        except FileNotFoundError:
-            logger.warning(f"SSH or shell utility not found when attempting command: {cmd}")
-            return ""
-        except Exception as e:
-            logger.warning(f"Command execution exception ({cmd}): {e}")
-            return ""
-
+    # ------------------------------------------------------------------
+    # YAML generation (unchanged 3GPP config)
+    # ------------------------------------------------------------------
     def generate_ue_yaml(self, endpoint: OrchestratedEndpoint) -> str:
         """Generate UERANSIM YAML configuration for an endpoint."""
         imsi = str(endpoint.imsi)
@@ -167,391 +197,278 @@ integrityMaxRate:
 """
         return yaml_content
 
-    def _write_file(self, file_path: str, content: str) -> None:
-        """Write file locally or remotely over SSH using sudo tee."""
+    # ------------------------------------------------------------------
+    # Agent transport
+    # ------------------------------------------------------------------
+    def _call(self, method: str, path: str, body: Optional[Dict[str, Any]] = None,
+              timeout: Optional[float] = None) -> Dict[str, Any]:
+        if not self.agent_token:
+            raise AgentUnavailable("AGENT_TOKEN not configured on the core")
+        rid = uuid.uuid4().hex[:8]
+        url = f"{self.agent_url}{path}"
+        data = json.dumps(body).encode() if body is not None else None
+        req = urllib.request.Request(url, data=data, method=method, headers={
+            "X-Agent-Token": self.agent_token,
+            "X-Request-Id": rid,
+            "Content-Type": "application/json",
+        })
+        t0 = time.monotonic()
+        try:
+            with urllib.request.urlopen(req, timeout=timeout or self.timeout_s) as resp:
+                payload = json.loads(resp.read().decode() or "{}")
+            ms = round((time.monotonic() - t0) * 1000)
+            log_level = logging.DEBUG if method == "GET" else logging.INFO
+            logger.log(log_level, "event=agent.call req=%s %s %s -> 200 in %sms", rid, method, path, ms)
+            return payload
+        except urllib.error.HTTPError as e:
+            ms = round((time.monotonic() - t0) * 1000)
+            detail = e.read().decode(errors="replace")[:300]
+            logger.warning("event=agent.call req=%s %s %s -> HTTP %s in %sms detail=%s", rid, method, path, e.code, ms, detail)
+            if e.code == 409:
+                raise AgentUnavailable(f"Action already in progress on agent ({detail})")
+            raise AgentUnavailable(f"Agent HTTP {e.code}: {detail}")
+        except Exception as e:
+            ms = round((time.monotonic() - t0) * 1000)
+            logger.warning("event=agent.unreachable req=%s %s %s after %sms error=%r", rid, method, path, ms, str(e))
+            raise AgentUnavailable(f"RAN agent unreachable at {self.agent_url}: {e}")
+
+    # ------------------------------------------------------------------
+    # Telemetry
+    # ------------------------------------------------------------------
+    def telemetry(self, max_age_s: Optional[float] = None) -> Dict[str, Any]:
+        """Agent telemetry (cached ~1s). Returns {"ok": False, "error": ...} if unreachable."""
         if self.mock_mode:
-            return
-        if os.environ.get("ROLE") in ("ue-agent", "all") or not self.ssh_host:
-            p = subprocess.run(["sudo", "tee", file_path], input=content, text=True, capture_output=True)
-            if p.returncode != 0:
-                logger.error(f"Failed to write local file {file_path}: {p.stderr}")
-            return
+            return self._mock_telemetry()
+        ttl = self.telemetry_ttl_s if max_age_s is None else max_age_s
+        with self._tele_lock:
+            if self._tele_cache is not None and (time.monotonic() - self._tele_at) < ttl:
+                return self._tele_cache
+        try:
+            t = self._call("GET", "/api/agent/telemetry")
+            t["ok"] = True
+        except AgentUnavailable as e:
+            t = {"ok": False, "error": str(e), "ues": [], "tuns": [], "processes": [],
+                 "unattributed_tuns": [], "unidentified_processes": [], "gnb": {"running": None, "pids": []}}
+        with self._tele_lock:
+            self._tele_cache, self._tele_at = t, time.monotonic()
+        return t
 
-        ssh_cmd = [
-            "ssh",
-            "-o", "BatchMode=yes",
-            "-o", "ConnectTimeout=5",
-            "-o", "StrictHostKeyChecking=accept-new",
-            self.ssh_host,
-            f"sudo mkdir -p $(dirname {file_path}) && sudo tee {file_path} > /dev/null",
-        ]
-        p = subprocess.run(ssh_cmd, input=content, text=True, capture_output=True)
-        if p.returncode != 0:
-            logger.error(f"Failed to write remote file {file_path} on {self.ssh_host}: {p.stderr}")
+    def invalidate_cache(self) -> None:
+        with self._tele_lock:
+            self._tele_cache = None
 
-    def start_ue(self, endpoint: OrchestratedEndpoint) -> Dict[str, Any]:
-        """Deploy YAML configuration and spawn nr-ue process."""
-        imsi = str(endpoint.imsi)
+    def get_ue_status(self, imsi: str) -> Dict[str, Any]:
+        """Live radio state for one IMSI (radio_state: active/connecting/failed/stopped/unknown)."""
+        clean = _clean(imsi)
+        t = self.telemetry(max_age_s=0.5)
+        if not t.get("ok"):
+            return _compat_status({"imsi": clean}, agent_ok=False) | {"reason": t.get("error")}
+        ue = next((u for u in t["ues"] if u["imsi"] == clean), None)
+        if ue is None:
+            ue = {"imsi": clean, "process_alive": False, "radio_state": "stopped",
+                  "reason": "no nr-ue process and no log for this IMSI"}
+        return _compat_status(ue)
+
+    def list_active_ues(self) -> List[Dict[str, Any]]:
+        """UEs with a live nr-ue process (any radio_state)."""
+        t = self.telemetry()
+        return [_compat_status(u) for u in t.get("ues", []) if u.get("process_alive")]
+
+    def get_active_tun_interfaces(self) -> List[Dict[str, Any]]:
+        """Kernel uesimtun interfaces on the RAN host (as seen by the agent)."""
+        t = self.telemetry()
+        return [{
+            "interface": x["interface"],
+            "status": "UP" if x.get("up") else (x.get("operstate") or "DOWN"),
+            "ip": x.get("ip"),
+            "cidr": f"{x['ip']}/24" if x.get("ip") else None,
+        } for x in t.get("tuns", [])]
+
+    # ------------------------------------------------------------------
+    # Control
+    # ------------------------------------------------------------------
+    def start_ue(self, endpoint: OrchestratedEndpoint, timeout_s: float = 15.0) -> Dict[str, Any]:
+        """Power on: send YAML to the agent, which waits until the kernel TUN is up or fails."""
+        imsi = _clean(endpoint.imsi)
+        if self.mock_mode:
+            return self._mock_start(imsi)
         yaml_content = self.generate_ue_yaml(endpoint)
+        try:
+            r = self._call("POST", f"/api/agent/ue/{imsi}/start",
+                           {"yaml": yaml_content, "timeout_s": timeout_s}, timeout=timeout_s + 15)
+        except AgentUnavailable as e:
+            return _compat_status({"imsi": imsi}, agent_ok=False) | {
+                "success": False, "error": str(e), "initial_logs": ""}
+        finally:
+            self.invalidate_cache()
+        state = r.get("state") or {"imsi": imsi}
+        return _compat_status(state) | {
+            "success": bool(r.get("success")),
+            "error": r.get("error"),
+            "elapsed_ms": r.get("elapsed_ms"),
+            "initial_logs": r.get("logs", ""),
+        }
 
+    def stop_ue_detail(self, imsi: str) -> Dict[str, Any]:
+        clean = _clean(imsi)
         if self.mock_mode:
-            self._mock_processes[imsi] = {
-                "imsi": imsi,
-                "pid": 99999,
-                "status": "running",
-                "interface": "uesimtun1",
-                "config_path": f"/tmp/ue-{imsi}.yaml",
-            }
-            return self._mock_processes[imsi]
-
-        # 1. Terminate any previous instance for this IMSI
-        self.stop_ue(imsi)
-
-        # 2. Write YAML config file safely via stdin
-        config_path = f"{self.ueransim_dir}/config/managed/ue-{imsi}.yaml"
-        self._write_file(config_path, yaml_content)
-
-        # 3. Launch nr-ue in background via disowned subshell
-        log_path = f"/tmp/nr-ue-{imsi}.log"
-        run_cmd = f"sudo bash -c 'cd {self.ueransim_dir} && (nohup ./build/nr-ue -c {config_path} > {log_path} 2>&1 </dev/null &)'"
-        self._exec_command(run_cmd)
-
-        # Allow process a moment to initialize
-        time.sleep(1.5)
-        status = self.get_ue_status(imsi)
-        status["initial_logs"] = self.get_ue_logs(imsi, lines=25).get("logs", "")
-        return status
-
-    def cleanup_orphan_tuns(self) -> List[str]:
-        """Delete uesimtun interfaces on RAN host that have no running nr-ue process."""
-        if self.mock_mode:
-            return []
-
-        # Find all running nr-ue interfaces
-        cmd = "ps aux | grep -E 'nr-ue' | grep -v grep || true"
-        out = self._exec_command(cmd)
-        
-        # If no nr-ue is running at all, clean all uesimtun interfaces
-        if not out.strip():
-            del_all = "for iface in $(ip -br a | grep uesimtun | awk '{print $1}'); do sudo ip link delete $iface 2>/dev/null || true; done"
-            self._exec_command(del_all)
-            return []
-
-        # List all system uesimtun interfaces
-        tun_out = self._exec_command("ip -br a | grep uesimtun | awk '{print $1}' || true")
-        cleaned = []
-        if tun_out:
-            # Check which interfaces are mentioned in active logs or processes
-            active_ifaces = set()
-            tail = self._exec_command("grep -ho 'TUN interface\\[uesimtun[0-9]*' /tmp/nr-ue-*.log 2>/dev/null || true")
-            for match in re.finditer(r"uesimtun[0-9]+", tail):
-                active_ifaces.add(match.group(0))
-
-            for line in tun_out.splitlines():
-                iface = line.strip()
-                if iface and iface.startswith("uesimtun") and iface not in active_ifaces:
-                    self._exec_command(f"sudo ip link delete {iface} 2>/dev/null || true")
-                    cleaned.append(iface)
-        return cleaned
+            self._mock_processes.pop(clean, None)
+            return {"success": True, "imsi": clean, "steps": ["mock stop"]}
+        try:
+            return self._call("POST", f"/api/agent/ue/{clean}/stop", timeout=20)
+        except AgentUnavailable as e:
+            return {"success": False, "imsi": clean, "error": str(e), "steps": []}
+        finally:
+            self.invalidate_cache()
 
     def stop_ue(self, imsi: str) -> bool:
-        """Stop nr-ue process for this IMSI, delete associated TUN interface, and remove managed config."""
-        clean_imsi = re.sub(r"\D", "", str(imsi))
-        if self.mock_mode:
-            self._mock_processes.pop(clean_imsi, None)
-            return True
-
-        # 1. Query current status to capture TUN interface before killing
-        status = self.get_ue_status(clean_imsi)
-        iface = status.get("interface")
-
-        # 2. Kill only this specific managed nr-ue instance
-        kill_cmd = f"sudo pkill -9 -f 'nr-ue.*ue-{clean_imsi}.yaml' 2>/dev/null || true"
-        self._exec_command(kill_cmd)
-
-        # 3. Explicitly delete the TUN interface if known
-        if iface and iface.startswith("uesimtun"):
-            self._exec_command(f"sudo ip link delete {iface} 2>/dev/null || true")
-
-        # 4. Remove config and log file
-        rm_cmd = f"sudo rm -f {self.ueransim_dir}/config/managed/ue-{clean_imsi}.yaml /tmp/nr-ue-{clean_imsi}.log 2>/dev/null || true"
-        self._exec_command(rm_cmd)
-
-        # 5. Clean any orphaned tun interfaces not owned by any running process
-        self.cleanup_orphan_tuns()
-        return True
+        """Power off one IMSI (graceful 3GPP deregistration, then kill). True if confirmed stopped."""
+        return bool(self.stop_ue_detail(imsi).get("success"))
 
     def stop_all_ues(self) -> bool:
-        """Stop all managed and baseline nr-ue processes and remove all uesimtun interfaces."""
         if self.mock_mode:
             self._mock_processes.clear()
             return True
+        try:
+            return bool(self._call("POST", "/api/agent/stop-all", timeout=120).get("success"))
+        except AgentUnavailable:
+            return False
+        finally:
+            self.invalidate_cache()
 
-        self._exec_command("sudo pkill -9 -f 'nr-ue' 2>/dev/null || true")
-        self._exec_command(f"sudo rm -f {self.ueransim_dir}/config/managed/ue-*.yaml /tmp/nr-ue-*.log 2>/dev/null || true")
-        self._exec_command("for iface in $(ip -br a | grep uesimtun | awk '{print $1}'); do sudo ip link delete $iface 2>/dev/null || true; done")
-        return True
-
-    def exec_ue_traffic(self, imsi: str, traffic_type: str = "allowed", target_url: Optional[str] = None) -> Dict[str, Any]:
-        """
-        Execute real data traffic over the specific 5G UE TUN interface (uesimtunX).
-        - 'allowed' / 'web': Real HTTP request to test connectivity through Prisma Access
-        - 'ping': Real ICMP Ping packets to 8.8.8.8 through 5G tunnel
-        - 'threat_blocked': Simulated / real test threat (e.g. wicar.org) to trigger Prisma SASE inline threat block
-        """
-        clean_imsi = re.sub(r"\D", "", str(imsi))
-        st = self.get_ue_status(clean_imsi)
-        iface = st.get("interface")
-        ip = st.get("assigned_ip")
-
+    def cleanup_orphan_tuns(self) -> List[str]:
+        """Delete TUNs not attributed to any live UE (agent refuses if ownership is ambiguous)."""
         if self.mock_mode:
-            if traffic_type == "threat_blocked":
-                return {
-                    "success": True,
-                    "imsi": clean_imsi,
-                    "interface": iface or "uesimtun0",
-                    "assigned_ip": ip or "10.45.0.3",
-                    "traffic_type": "threat_blocked",
-                    "target": target_url or "http://wicar.org/data/ms14-064.html",
-                    "status": "BLOCKED_BY_PRISMA_SASE",
-                    "http_code": 403,
-                    "security_verdict": "Threat Blocked (Zero-Trust Enforcement)",
-                    "threat_name": "Exploit-Payload/Generic.Wicar",
-                    "scm_tag": f"IMSI: {clean_imsi}",
-                    "details": "Connection reset by Palo Alto Networks Prisma Access inline security inspection.",
-                }
-            elif traffic_type == "ping":
-                return {
-                    "success": True,
-                    "imsi": clean_imsi,
-                    "interface": iface or "uesimtun0",
-                    "assigned_ip": ip or "10.45.0.3",
-                    "traffic_type": "ping",
-                    "target": "8.8.8.8",
-                    "status": "SUCCESS",
-                    "latency_ms": 14.2,
-                    "packets_transmitted": 3,
-                    "packets_received": 3,
-                    "packet_loss": "0%",
-                }
-            else:
-                return {
-                    "success": True,
-                    "imsi": clean_imsi,
-                    "interface": iface or "uesimtun0",
-                    "assigned_ip": ip or "10.45.0.3",
-                    "traffic_type": "allowed",
-                    "target": target_url or "https://paloaltonetworks.com",
-                    "status": "SUCCESS",
-                    "http_code": 200,
-                    "rtt_seconds": 0.082,
-                    "security_verdict": "Allowed (Clean Traffic)",
-                    "details": "HTTP 200 OK received through Prisma Access 5G SASE tunnel.",
-                }
-
-        if not iface:
-            # Fallback scan for system TUNs
-            tuns = self.get_active_tun_interfaces()
-            if tuns:
-                iface = tuns[0]["interface"]
-                if not ip:
-                    ip = tuns[0].get("ip")
-
-        if not iface:
-            iface = "uesimtun0"
-            ip = ip or "10.45.0.3"
-
-
-        if traffic_type == "ping":
-            cmd = f"ping -I {iface} -c 3 -W 2 8.8.8.8 2>&1 || ping -I {iface} -c 3 -W 2 10.45.0.1 2>&1"
-            out = self._exec_command(cmd)
-            rtt_match = re.search(r"rtt min/avg/max/mdev = ([0-9.]+)/([0-9.]+)/([0-9.]+)", out)
-            loss_match = re.search(r"([0-9]+)% packet loss", out)
-            latency = float(rtt_match.group(2)) if rtt_match else None
-            loss = loss_match.group(1) + "%" if loss_match else "0%"
-            return {
-                "success": True,
-                "imsi": clean_imsi,
-                "interface": iface,
-                "assigned_ip": ip,
-                "traffic_type": "ping",
-                "target": "8.8.8.8",
-                "latency_ms": latency or 15.0,
-                "packet_loss": loss,
-                "raw_output": out,
-            }
-        elif traffic_type == "threat_blocked":
-            target = target_url or "http://wicar.org/data/ms14-064.html"
-            cmd = f"curl --interface {iface} -s -m 5 -w '\\nHTTP_CODE:%{{http_code}}\\n' '{target}' 2>&1 || true"
-            out = self._exec_command(cmd)
-            is_blocked = "HTTP_CODE:000" in out or "HTTP_CODE:403" in out or "Connection reset" in out or "Timed out" in out or "Access Denied" in out or "Threat" in out
-            return {
-                "success": True,
-                "imsi": clean_imsi,
-                "interface": iface,
-                "assigned_ip": ip,
-                "traffic_type": "threat_blocked",
-                "target": target,
-                "status": "BLOCKED_BY_PRISMA_SASE" if is_blocked else "RECEIVED",
-                "security_verdict": "Threat Blocked (Zero-Trust Enforcement)" if is_blocked else "Monitored",
-                "threat_name": "Exploit-Test/WICAR.SecurityTest",
-                "raw_output": out[-300:] if out else "",
-                "scm_correlation_hint": f"Search SCM Threat logs for User/Device IP: {ip} or IMSI: {clean_imsi}",
-            }
-        else:
-            target = target_url or "https://paloaltonetworks.com"
-            cmd = f"curl --interface {iface} -s -m 5 -o /dev/null -w 'HTTP_CODE:%{{http_code}} TIME_TOTAL:%{{time_total}}' '{target}' 2>&1 || true"
-            out = self._exec_command(cmd)
-            code_m = re.search(r"HTTP_CODE:([0-9]+)", out)
-            time_m = re.search(r"TIME_TOTAL:([0-9.]+)", out)
-            code = int(code_m.group(1)) if code_m else 200
-            rtt = float(time_m.group(1)) if time_m else 0.095
-            return {
-                "success": True,
-                "imsi": clean_imsi,
-                "interface": iface,
-                "assigned_ip": ip,
-                "traffic_type": "allowed",
-                "target": target,
-                "http_code": code if code > 0 else 200,
-                "rtt_seconds": rtt,
-                "security_verdict": "Allowed (Clean Traffic)",
-                "raw_output": out,
-            }
+            return []
+        try:
+            return self._call("POST", "/api/agent/cleanup-tuns", timeout=10).get("deleted", [])
+        except AgentUnavailable:
+            return []
+        finally:
+            self.invalidate_cache()
 
     def get_ue_logs(self, imsi: str, lines: int = 50) -> Dict[str, Any]:
-        """Fetch the last N lines of logs for a given UE from the RAN host."""
-        clean_imsi = re.sub(r"\D", "", str(imsi))
-        log_path = f"/tmp/nr-ue-{clean_imsi}.log"
+        clean = _clean(imsi)
         if self.mock_mode:
-            mock_logs = (
-                f"[2026-10-02 12:00:00.100] [rrc] [info] Selected cell plmn[999/70] tac[1] category[SUITABLE]\n"
-                f"[2026-10-02 12:00:00.102] [rrc] [info] RRC connection established\n"
-                f"[2026-10-02 12:00:00.105] [nas] [info] Initial Registration is successful\n"
-                f"[2026-10-02 12:00:00.110] [nas] [info] PDU Session establishment is successful PSI[1]\n"
-                f"[2026-10-02 12:00:00.112] [app] [info] Connection setup for PDU session[1] is successful, TUN interface[uesimtun1, 10.45.0.18] is up."
-            )
-            return {"imsi": clean_imsi, "log_path": log_path, "logs": mock_logs, "lines": lines}
+            return {"imsi": clean, "log_path": f"/tmp/nr-ue-{clean}.log", "lines": lines, "logs": (
+                "[rrc] [info] RRC connection established\n"
+                "[nas] [info] Initial Registration is successful\n"
+                "[nas] [info] PDU Session establishment is successful PSI[1]\n"
+                "[app] [info] Connection setup for PDU session[1] is successful, TUN interface[uesimtun0, 10.45.0.2] is up.")}
+        try:
+            return self._call("GET", f"/api/agent/ue/{clean}/logs?lines={int(lines)}")
+        except AgentUnavailable as e:
+            return {"imsi": clean, "log_path": None, "lines": lines, "logs": f"[RAN agent unreachable] {e}"}
 
-        cmd = f"sudo tail -n {lines} {log_path} 2>/dev/null || echo 'No log file found at {log_path}'"
-        log_text = self._exec_command(cmd)
-        return {
-            "imsi": clean_imsi,
-            "log_path": log_path,
-            "logs": log_text,
-            "lines": lines,
-        }
-
-    def get_ue_status(self, imsi: str) -> Dict[str, Any]:
-        """Check status of nr-ue process, log status, and query nr-cli for session telemetry."""
-        clean_imsi = re.sub(r"\D", "", str(imsi))
+    def get_agent_events(self, limit: int = 100, imsi: Optional[str] = None) -> Dict[str, Any]:
         if self.mock_mode:
-            proc = self._mock_processes.get(clean_imsi)
-            if proc:
-                return {
-                    "imsi": clean_imsi,
-                    "running": True,
-                    "pid": proc.get("pid"),
-                    "interface": proc.get("interface", "uesimtun1"),
-                    "assigned_ip": "10.45.0.18",
-                    "pdu_status": "PS-ACTIVE",
-                }
-            return {"imsi": clean_imsi, "running": False, "pdu_status": "STOPPED"}
+            return {"events": []}
+        q = f"limit={int(limit)}" + (f"&imsi={_clean(imsi)}" if imsi else "")
+        try:
+            return self._call("GET", f"/api/agent/events?{q}")
+        except AgentUnavailable as e:
+            return {"events": [], "error": str(e)}
 
-        # Check running process
-        ps_cmd = f"pgrep -f 'nr-ue.*ue-{clean_imsi}.yaml' | head -n 1"
-        pid_str = self._exec_command(ps_cmd)
-        running = bool(pid_str and pid_str.isdigit())
-        pid = int(pid_str) if running else None
+    def imsi_for_interface(self, iface: str) -> Optional[str]:
+        t = self.telemetry(max_age_s=0.5)
+        return next((u["imsi"] for u in t.get("ues", []) if u.get("interface") == iface), None)
 
-        pdu_status = "UNKNOWN"
-        interface_name = None
-        assigned_ip = None
-
-        # Inspect log file for connection state & TUN info
-        log_path = f"/tmp/nr-ue-{clean_imsi}.log"
-        tail_cmd = f"sudo tail -n 30 {log_path} 2>/dev/null || true"
-        tail_out = self._exec_command(tail_cmd)
-
-        if "TUN interface[" in tail_out:
-            tun_match = re.search(r"TUN interface\[([a-zA-Z0-9]+),\s*([0-9.]+)\]", tail_out)
-            if tun_match:
-                interface_name = tun_match.group(1)
-                assigned_ip = tun_match.group(2)
-                pdu_status = "PS-ACTIVE"
-        elif "PDU Session establishment is successful" in tail_out:
-            pdu_status = "PS-ACTIVE"
-        elif "FIVEG_SERVICES_NOT_ALLOWED" in tail_out or "Registration reject" in tail_out:
-            pdu_status = "REJECTED (PLMN/Auth)"
-        elif running:
-            pdu_status = "CONNECTING"
-        else:
-            pdu_status = "STOPPED"
-
-        if running and pdu_status != "PS-ACTIVE":
-            # Query nr-cli fallback
-            supi = f"imsi-{clean_imsi}"
-            cli_cmd = f"sudo {self.ueransim_dir}/build/nr-cli {supi} --exec 'ps-list' 2>/dev/null || true"
-            cli_out = self._exec_command(cli_cmd)
-            if "PS-ACTIVE" in cli_out:
-                pdu_status = "PS-ACTIVE"
-                ip_match = re.search(r"address:\s*([0-9.]+)", cli_out)
-                if ip_match:
-                    assigned_ip = ip_match.group(1)
-
-        if not assigned_ip and (running or pdu_status == "PS-ACTIVE"):
-            # Inspect system uesimtun interfaces on RAN host
-            ip_cmd = "ip -4 -o addr show | grep 'uesimtun' || true"
-            ip_out = self._exec_command(ip_cmd)
-            if ip_out:
-                ip_match = re.search(r"inet\s+([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)", ip_out)
-                if ip_match:
-                    assigned_ip = ip_match.group(1)
-                    if not interface_name:
-                        iface_m = re.search(r"(uesimtun\d+)", ip_out)
-                        if iface_m:
-                            interface_name = iface_m.group(1)
-
-        return {
-            "imsi": clean_imsi,
-            "running": running,
-            "pid": pid,
-            "pdu_status": pdu_status,
-            "interface": interface_name,
-            "assigned_ip": assigned_ip,
-            "log_path": log_path,
-        }
-
-    def list_active_ues(self) -> List[Dict[str, Any]]:
-        """List all active managed UEs running on UERANSIM."""
+    # ------------------------------------------------------------------
+    # Traffic (always bound to THIS IMSI's own TUN, refused if not active)
+    # ------------------------------------------------------------------
+    def exec_ue_traffic(self, imsi: str, traffic_type: str = "allowed", target_url: Optional[str] = None) -> Dict[str, Any]:
+        clean = _clean(imsi)
         if self.mock_mode:
-            return list(self._mock_processes.values())
+            return self._mock_traffic(clean, traffic_type, target_url)
+        try:
+            r = self._call("POST", f"/api/agent/ue/{clean}/traffic",
+                           {"traffic_type": traffic_type, "target_url": target_url}, timeout=25)
+        except AgentUnavailable as e:
+            return {"success": False, "imsi": clean, "traffic_type": traffic_type, "error": str(e)}
+        if not r.get("success"):
+            return {"success": False, "imsi": clean, "traffic_type": traffic_type,
+                    "error": r.get("error"), "state": r.get("state")}
+        return self._interpret_traffic(r)
 
-        cmd = "ps aux | grep -E 'nr-ue.*config/managed' | grep -v grep || true"
-        out = self._exec_command(cmd)
-        results = []
-        if out:
-            for line in out.splitlines():
-                match = re.search(r"ue-([0-9]+)\.yaml", line)
-                if match:
-                    imsi = match.group(1)
-                    results.append(self.get_ue_status(imsi))
-        return results
+    @staticmethod
+    def _interpret_traffic(r: Dict[str, Any]) -> Dict[str, Any]:
+        out = r.get("raw_output", "") or ""
+        base = {"success": True, "imsi": r["imsi"], "interface": r["interface"],
+                "assigned_ip": r["assigned_ip"], "target": r["target"],
+                "traffic_type": r["traffic_type"], "raw_output": out}
+        kind = r["traffic_type"]
+        if kind == "ping":
+            rtt = re.search(r"rtt min/avg/max/mdev = ([0-9.]+)/([0-9.]+)/", out)
+            loss = re.search(r"([0-9.]+)% packet loss", out)
+            received = re.search(r"(\d+) (?:packets )?received", out)
+            ok = bool(received and int(received.group(1)) > 0)
+            return base | {"status": "SUCCESS" if ok else "FAILED",
+                           "latency_ms": float(rtt.group(2)) if rtt else None,
+                           "packet_loss": f"{loss.group(1)}%" if loss else None}
+        code_m = re.search(r"HTTP_CODE:(\d+)", out)
+        time_m = re.search(r"TIME_TOTAL:([0-9.]+)", out)
+        code = int(code_m.group(1)) if code_m else 0
+        rtt = float(time_m.group(1)) if time_m else None
+        if kind == "threat_blocked":
+            blocked = code in (0, 403) or "reset" in out.lower()
+            return base | {"status": "BLOCKED_BY_PRISMA_SASE" if blocked else "RECEIVED",
+                           "http_code": code, "rtt_seconds": rtt,
+                           "security_verdict": "Threat Blocked (Zero-Trust Enforcement)" if blocked else "Not blocked",
+                           "threat_name": "Exploit-Test/WICAR.SecurityTest",
+                           "scm_correlation_hint": f"Search SCM Threat logs for IP {r['assigned_ip']} / IMSI {r['imsi']}"}
+        ok = code > 0
+        return base | {"status": "SUCCESS" if ok else "FAILED", "http_code": code, "rtt_seconds": rtt,
+                       "security_verdict": "Allowed (Clean Traffic)" if 200 <= code < 400 else f"HTTP {code or 'no response'}"}
 
-    def get_active_tun_interfaces(self) -> List[Dict[str, str]]:
-        """List active uesimtun network interfaces and their allocated IPs on the RAN host."""
+    def ping(self, imsi: str, target: str = "10.45.0.1") -> Dict[str, Any]:
+        """ICMP through the IMSI's own TUN (used by the Live Telemetry 'Ping Data Plane' button)."""
+        clean = _clean(imsi)
         if self.mock_mode:
-            return [{"interface": "uesimtun0", "status": "UNKNOWN", "ip": "10.45.0.3", "cidr": "10.45.0.3/24"}]
+            return self._mock_traffic(clean, "ping", target)
+        try:
+            r = self._call("POST", f"/api/agent/ue/{clean}/traffic",
+                           {"traffic_type": "ping", "target_url": target}, timeout=25)
+        except AgentUnavailable as e:
+            return {"success": False, "imsi": clean, "error": str(e)}
+        if not r.get("success"):
+            return {"success": False, "imsi": clean, "error": r.get("error")}
+        return self._interpret_traffic(r)
 
-        out = self._exec_command("ip -br a | grep uesimtun || true")
-        interfaces = []
-        if out:
-            for line in out.splitlines():
-                parts = line.split()
-                if len(parts) >= 3:
-                    iface = parts[0]
-                    state = parts[1]
-                    ip_cidr = parts[2]
-                    ip = ip_cidr.split("/")[0] if "/" in ip_cidr else ip_cidr
-                    interfaces.append({"interface": iface, "status": state, "ip": ip, "cidr": ip_cidr})
-        return interfaces
+    # ------------------------------------------------------------------
+    # Mock mode (tests / offline)
+    # ------------------------------------------------------------------
+    def _mock_start(self, imsi: str) -> Dict[str, Any]:
+        if imsi not in self._mock_processes:
+            self._mock_processes[imsi] = {
+                "imsi": imsi, "pid": 90000 + len(self._mock_processes),
+                "interface": f"uesimtun{len(self._mock_processes)}", "ip": f"10.45.0.{self._mock_next_ip}",
+            }
+            self._mock_next_ip += 1
+        p = self._mock_processes[imsi]
+        ue = {"imsi": imsi, "pid": p["pid"], "process_alive": True, "radio_state": "active",
+              "reason": "mock", "interface": p["interface"], "ip": p["ip"]}
+        return _compat_status(ue) | {"success": True, "status": "running", "error": None, "initial_logs": ""}
+
+    def _mock_telemetry(self) -> Dict[str, Any]:
+        ues = [{"imsi": p["imsi"], "pid": p["pid"], "process_alive": True, "duplicate_processes": False,
+                "radio_state": "active", "reason": "mock", "log_phase": "pdu_active", "last_error": None,
+                "interface": p["interface"], "ip": p["ip"]} for p in self._mock_processes.values()]
+        return {"ok": True, "mock": True, "gnb": {"running": True, "pids": [1]},
+                "processes": [{"pid": u["pid"], "imsi": u["imsi"]} for u in ues],
+                "unidentified_processes": [], "ues": ues, "unattributed_tuns": [],
+                "tuns": [{"interface": u["interface"], "ip": u["ip"], "up": True} for u in ues], "scan_ms": 0}
+
+    @staticmethod
+    def _mock_traffic(imsi: str, traffic_type: str, target: Optional[str]) -> Dict[str, Any]:
+        base = {"success": True, "imsi": imsi, "interface": "uesimtun0", "assigned_ip": "10.45.0.2",
+                "traffic_type": traffic_type, "mock": True}
+        if traffic_type == "threat_blocked":
+            return base | {"target": target or "http://wicar.org/data/ms14-064.html",
+                           "status": "BLOCKED_BY_PRISMA_SASE", "http_code": 403,
+                           "security_verdict": "Threat Blocked (Zero-Trust Enforcement)",
+                           "threat_name": "Exploit-Payload/Generic.Wicar"}
+        if traffic_type == "ping":
+            return base | {"target": target or "8.8.8.8", "status": "SUCCESS", "latency_ms": 14.2,
+                           "packet_loss": "0%"}
+        return base | {"target": target or "https://paloaltonetworks.com", "status": "SUCCESS",
+                       "http_code": 200, "rtt_seconds": 0.082, "security_verdict": "Allowed (Clean Traffic)"}

@@ -354,13 +354,19 @@ def save_sim_metadata(metadata: Dict[str, Dict[str, Any]], target_dir: Optional[
 
 
 def update_single_sim_metadata(imsi: str, data: Dict[str, Any], target_dir: Optional[Union[str, Path]] = None) -> None:
-    """Update or insert metadata for a specific IMSI."""
+    """Update or insert metadata for a specific IMSI.
+    Keys with value=None are removed (allows callers to explicitly clear fields).
+    """
     if not imsi:
         return
     current = load_sim_metadata(target_dir)
     if imsi not in current:
         current[imsi] = {}
-    current[imsi].update(data)
+    for key, value in data.items():
+        if value is None:
+            current[imsi].pop(key, None)  # Remove the key entirely
+        else:
+            current[imsi][key] = value
     save_sim_metadata(current, target_dir)
 
 
