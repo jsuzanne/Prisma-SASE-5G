@@ -168,6 +168,30 @@ def _scm_inventory_fetch() -> List[Dict[str, Any]]:
 
 _reconciler = Reconciler(_ueransim_client, _open5gs_client, scm_fetcher=_scm_inventory_fetch)
 
+# Phase 3: single owner of SCM session register/deregister + active_sessions.json (derived record),
+# driven by CONFIRMED reconciler transitions (never when the RAN agent is unreachable).
+from src.session_sync import SessionSync
+
+_session_sync = SessionSync(
+    get_client=lambda: get_current_client(),
+    load_sessions=load_active_sessions,
+    save_sessions=save_active_sessions,
+    update_meta=update_single_sim_metadata,
+    load_meta=load_sim_metadata,
+    session_cls=UESession,
+)
+_reconciler.add_cycle_listener(_session_sync.on_cycle)
+
+
+def get_session_sync() -> SessionSync:
+    return _session_sync
+
+
+def _live_ip_owners(snap: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
+    snap = snap or _reconciler.snapshot()
+    return {s["live_ip"]: i for i, s in (snap.get("sims") or {}).items()
+            if s.get("status") == "active" and s.get("live_ip")}
+
 
 def get_reconciler() -> Reconciler:
     return _reconciler
@@ -614,8 +638,17 @@ def get_ground_truth_state(fresh: bool = False):
 
 @app.get("/api/state/events")
 def get_ground_truth_events(limit: int = 100, imsi: Optional[str] = None):
-    """Reconciler transition log (state.transition, power-on requests, SCM errors...)."""
-    return {"events": get_reconciler().events(limit=limit, imsi=imsi)}
+    """Reconciler transitions + session-sync actions (SCM register/deregister, cache prune), newest first."""
+    ev = get_reconciler().events(limit=limit, imsi=imsi) + get_session_sync().events(limit=limit, imsi=imsi)
+    ev.sort(key=lambda e: e.get("ts", ""), reverse=True)
+    return {"events": ev[:limit]}
+
+
+@app.get("/api/state/sessions")
+def get_session_records():
+    """Derived record of SCM-registered sessions (active_sessions.json) + recent session-sync actions."""
+    return {"sessions": load_active_sessions(), "enabled": get_session_sync().enabled,
+            "events": get_session_sync().events(limit=50)}
 
 
 @app.post("/api/state/refresh")
@@ -715,13 +748,15 @@ def cleanup_stale_5g_resources():
             core.delete_subscriber(imsi)
             cleaned.append(f"Deleted subscriber {imsi}")
 
-    # 3. Purge non-baseline active sessions
-    active_sessions = load_active_sessions()
-    cleaned_sessions = {}
-    for imsi_k, sess in active_sessions.items():
+    # 3. Deregister + drop non-baseline session records (SCM mapping removed, not just the JSON)
+    snap_c = get_reconciler().refresh_now()
+    owners = _live_ip_owners(snap_c)
+    for imsi_k in list(load_active_sessions().keys()):
         if imsi_k in ("901700000000001", "999700000000001"):
-            cleaned_sessions[imsi_k] = sess
-    save_active_sessions(cleaned_sessions)
+            continue
+        r = get_session_sync().deregister(imsi_k, sim=(snap_c.get("sims") or {}).get(imsi_k), reason="cleanup",
+                                          live_ips_elsewhere=owners, known_sim=imsi_k in (snap_c.get("sims") or {}))
+        cleaned.append(f"Session {imsi_k} {r.get('ip')}: " + (r.get("skipped") or ("SCM deregistered" if r.get("ok") else f"SCM error {r.get('error')}")))
 
     # 4. SMF in-memory sessions cannot be flushed from inside the container (no systemctl).
     #    Stale SMF sessions are listed in /api/state -> stale_core_sessions.
@@ -943,34 +978,10 @@ def attach_ue_dynamic(imsi: str):
             "message": f"Power On failed for {clean_imsi}: {reason}. Nothing registered in SCM.",
         }
 
-    # 4. Register the session in SCM with the REAL TUN IP
-    session = UESession(
-        imsi=clean_imsi,
-        imei=imei,
-        apn=apn,
-        ip_type="IPv4",
-        ipv4_addr=allocated_ip,
-    )
-    scm_res = None
-    scm_ok = False
-    try:
-        scm_res = client.register_ue_session(session)
-        scm_ok = True
-    except Exception as s_err:
-        scm_res = {"error": str(s_err)}
-        logger.warning("event=attach.scm_register_failed imsi=%s ip=%s error=%r", clean_imsi, allocated_ip, str(s_err))
-
-    # 5. Update active session tracking
-    update_single_sim_metadata(clean_imsi, {"last_ip": allocated_ip, "status": "Active"})
-    update_single_active_session(clean_imsi, {
-        "ipv4_addr": allocated_ip,
-        "interface": ue_status.get("interface"),
-        "imei": imei,
-        "apn": apn,
-        "status": "Active",
-        "region": "europe-west9",
-        "tenant_status": "Yes",
-    })
+    # 4. Register the session in SCM with the REAL TUN IP (+ derived cache record), via SessionSync
+    scm_res = get_session_sync().register(clean_imsi, allocated_ip, interface=ue_status.get("interface"),
+                                          sim=sim, imei=imei, apn=apn, reason="power_on")
+    scm_ok = bool(scm_res.get("ok"))
 
     return {
         "success": True,
@@ -986,7 +997,7 @@ def attach_ue_dynamic(imsi: str):
         "scm_response": scm_res,
         "initial_logs": ue_status.get("initial_logs", ""),
         "message": (f"Powered on 5G UE {clean_imsi}: {ue_status.get('interface')} = {allocated_ip}"
-                    + (" -> SCM session registered 🟢" if scm_ok else " -> ⚠️ SCM registration FAILED")),
+                    + (" -> SCM session registered 🟢" if scm_ok else " -> ⚠️ SCM registration FAILED (will retry)")),
     }
 
 
@@ -1009,10 +1020,7 @@ def detach_ue_dynamic(imsi: str):
     active_sess = load_active_sessions().get(clean_imsi, {})
     last_ip = (sim.get("live_ip")
                or (radio_st.get("assigned_ip") if radio_st.get("radio_state") == "active" else None)
-               or active_sess.get("ipv4_addr")
-               or load_sim_metadata().get(clean_imsi, {}).get("last_ip"))
-    imei = active_sess.get("imei", f"35412809{clean_imsi[-7:]}")
-    apn = active_sess.get("apn", "internet")
+               or active_sess.get("ipv4_addr"))
 
     # 2. Stop radio process
     stop = ran.stop_ue_detail(clean_imsi)
@@ -1027,23 +1035,12 @@ def detach_ue_dynamic(imsi: str):
             "message": f"Power Off failed for {clean_imsi}: {stop.get('error') or 'stop not confirmed'}. State left untouched.",
         }
 
-    # 3. SCM deregistration with the real IP only
-    scm_res = None
-    scm_ok = False
-    if last_ip:
-        session = UESession(imsi=clean_imsi, imei=imei, apn=apn, ip_type="IPv4", ipv4_addr=last_ip)
-        try:
-            scm_res = client.deregister_ue_session(session)
-            scm_ok = True
-        except Exception as s_err:
-            scm_res = {"error": str(s_err)}
-            logger.warning("event=detach.scm_deregister_failed imsi=%s ip=%s error=%r", clean_imsi, last_ip, str(s_err))
-    else:
-        scm_res = {"skipped": "no known IP for this IMSI — nothing to deregister"}
-
-    delete_single_active_session(clean_imsi)
-    update_single_sim_metadata(clean_imsi, {"status": "Inactive", "last_ip": None})
-    sim_after = (rec.refresh_now().get("sims") or {}).get(clean_imsi, {})
+    # 3. SCM deregistration with the real IP only + drop the cache record (SessionSync)
+    snap_after = rec.refresh_now()
+    scm_res = get_session_sync().deregister(clean_imsi, ip_hint=last_ip, sim=sim, reason="power_off",
+                                            live_ips_elsewhere=_live_ip_owners(snap_after))
+    scm_ok = bool(scm_res.get("ok")) and not scm_res.get("skipped")
+    sim_after = (snap_after.get("sims") or {}).get(clean_imsi, {})
 
     return {
         "success": True,
@@ -1055,7 +1052,7 @@ def detach_ue_dynamic(imsi: str):
         "sync_status": sim_after.get("status", "unknown"),
         "message": (f"Powered off 5G UE {clean_imsi}"
                     + (f" -> SCM session {last_ip} deregistered 🔴" if scm_ok else
-                       (" (no IP known, SCM untouched)" if not last_ip else " -> ⚠️ SCM deregistration FAILED"))),
+                       (f" ({scm_res.get('skipped')})" if scm_res.get("skipped") else " -> ⚠️ SCM deregistration FAILED (will retry)"))),
     }
 
 
@@ -1102,7 +1099,12 @@ def fleet_power_off():
             "message": "Fleet power-off not confirmed by the RAN agent — local state left untouched",
             "state_summary": snap.get("summary", {}),
         }
-    save_active_sessions({})
+    # Deregister every recorded SCM session (the UEs are confirmed stopped by the agent)
+    owners = _live_ip_owners(snap)
+    dereg = {imsi: get_session_sync().deregister(imsi, sim=(snap.get("sims") or {}).get(imsi),
+                                                 reason="fleet_power_off", live_ips_elsewhere=owners,
+                                                 known_sim=imsi in (snap.get("sims") or {}))
+             for imsi in list(load_active_sessions().keys())}
 
     # Update local metadata to Inactive
     meta = load_sim_metadata()
@@ -1114,6 +1116,7 @@ def fleet_power_off():
     return {
         "success": True,
         "state_summary": snap.get("summary", {}),
+        "scm_deregistrations": {i: {k: r.get(k) for k in ("ok", "ip", "skipped", "error")} for i, r in dereg.items()},
         "message": "All 5G fleet devices powered off 🔴",
     }
 

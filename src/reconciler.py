@@ -138,6 +138,7 @@ class Reconciler:
         self._scm_attempt_at = 0.0
         self._events: deque = deque(maxlen=500)
         self._listeners: List[Callable[[Dict[str, Any], Optional[Dict[str, Any]], Dict[str, Any]], None]] = []
+        self._cycle_listeners: List[Callable[[Dict[str, Any]], None]] = []
 
     # ---- public ----------------------------------------------------------
     def start(self) -> None:
@@ -173,6 +174,10 @@ class Reconciler:
     def add_listener(self, fn) -> None:
         """fn(sim_now, sim_before_or_None, snapshot) on every status/IP change (Phase 3 hooks)."""
         self._listeners.append(fn)
+
+    def add_cycle_listener(self, fn) -> None:
+        """fn(snapshot) after EVERY cycle, outside the cycle lock (session sync / SCM calls)."""
+        self._cycle_listeners.append(fn)
 
     def events(self, limit: int = 100, imsi: Optional[str] = None) -> List[Dict[str, Any]]:
         items = list(self._events)
@@ -243,6 +248,15 @@ class Reconciler:
             self._event(logging.WARNING, "reconciler.scm_error", error=str(e)[:200])
 
     def _cycle(self, fetch_scm_if_due: bool) -> Dict[str, Any]:
+        snap = self._cycle_locked(fetch_scm_if_due)
+        for fn in self._cycle_listeners:
+            try:
+                fn(snap)
+            except Exception as e:
+                logger.exception("event=reconciler.cycle_listener_error error=%r", str(e))
+        return snap
+
+    def _cycle_locked(self, fetch_scm_if_due: bool) -> Dict[str, Any]:
         with self._cycle_lock:
             t0 = time.monotonic()
             now = time.time()
@@ -319,6 +333,7 @@ class Reconciler:
                         "groups": (scm_rec or {}).get("groups") or [],
                         "apn": (scm_rec or {}).get("apn"),
                         "identity_id": (scm_rec or {}).get("identity_id"),
+                        "imei": (scm_rec or {}).get("imei"),
                     },
                     "since": (prev.get(imsi) or {}).get("since") or _now_iso(),
                 }
