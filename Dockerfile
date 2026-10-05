@@ -15,7 +15,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     openssh-client \
     iproute2 \
     iputils-ping \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /etc/iproute2 \
+    && cp /usr/share/iproute2/rt_tables /etc/iproute2/rt_tables
 
 # Copy requirements and install
 COPY requirements.txt .
@@ -27,6 +29,7 @@ COPY src/ /app/src/
 COPY templates/ /app/templates/
 COPY static/ /app/static/
 COPY app.py /app/app.py
+COPY agent_app.py /app/agent_app.py
 COPY manage_5g.py /app/manage_5g.py
 COPY test_lifecycle.py /app/test_lifecycle.py
 COPY CHANGELOG.md /app/CHANGELOG.md

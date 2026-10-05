@@ -3,16 +3,27 @@ services:
     image: jsuzanne/prisma-5g-sase:5g-orchestrator
     container_name: prisma-5g-agent
     network_mode: host
+    # pid: host → the agent sees every nr-ue / nr-gnb process on the host via /proc.
+    # NOTE: nr-ue processes spawned by the agent live in this container's cgroup:
+    # restarting/redeploying the agent powers off all UEs (reported as offline).
+    pid: host
     cap_add:
       - NET_ADMIN
+      - KILL
     devices:
       - /dev/net/tun:/dev/net/tun
     volumes:
       - /home/ubuntu/UERANSIM:/opt/UERANSIM
       - ./config:/app/config
+      # Shared with the host so nr-cli and logs work for UEs started either way
+      - /tmp:/tmp
+    env_file:
+      - ./agent.env   # must define AGENT_TOKEN=<shared secret> (same value on the core)
     environment:
       - PYTHONUNBUFFERED=1
       - ROLE=ue-agent
+      - AGENT_BIND=10.10.10.2   # private N2/N3 link only — never the public IP
       - AGENT_PORT=8081
       - UERANSIM_DIR=/opt/UERANSIM
+      - DEBUG=${DEBUG:-false}   # true → verbose logs (every scan, every UE decision)
     restart: unless-stopped
