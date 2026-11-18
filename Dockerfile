@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     openssh-client \
     iproute2 \
     iputils-ping \
+    libsctp1 \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /etc/iproute2 \
     && cp /usr/share/iproute2/rt_tables /etc/iproute2/rt_tables

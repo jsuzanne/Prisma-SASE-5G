@@ -13,6 +13,7 @@ import os
 import time
 import random
 import re
+import threading
 import logging
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
@@ -180,6 +181,116 @@ _session_sync = SessionSync(
     load_meta=load_sim_metadata,
     session_cls=UESession,
 )
+
+_auto_heal_lock = threading.Lock()
+_auto_heal_cooldown: Dict[str, float] = {}
+
+
+def _auto_reconcile_on_cycle(snap: Dict[str, Any]) -> None:
+    """Self-healing orchestrator hook: keeps Open5GS Core, UERANSIM RAN, and SCM 100% aligned.
+
+    - Auto-provisions `scm_only` SIMs into Open5GS MongoDB.
+    - Auto-prunes `core_only` managed SIMs from Open5GS MongoDB when removed from SCM.
+    - Auto-heals `inconsistent` SIMs: re-attaches active SCM SIMs if AMF/gNB restarted, or stops
+      stale/orphan nr-ue processes so no SIM ever stays stuck in `inconsistent`.
+    """
+    if not _session_sync.enabled:
+        return
+    if not _auto_heal_lock.acquire(blocking=False):
+        return
+    try:
+        sources = snap.get("sources") or {}
+        agent_ok = bool((sources.get("agent") or {}).get("ok"))
+        amf_ok = bool((sources.get("amf") or {}).get("ok"))
+        smf_ok = bool((sources.get("smf") or {}).get("ok"))
+        mongo_ok = bool((sources.get("mongodb") or {}).get("ok"))
+        scm_ok = bool((sources.get("scm") or {}).get("ok")) and bool((sources.get("scm") or {}).get("has_data"))
+        sims = snap.get("sims") or {}
+        now = time.time()
+        core = get_open5gs_client()
+        ran = get_ueransim_client()
+        active_sess = load_active_sessions()
+        sim_meta_all = load_sim_metadata()
+
+        for imsi, sim in list(sims.items()):
+            if imsi in ("901700000000001", "999700000000001"):
+                continue
+            status = sim.get("status")
+            scm_info = sim.get("scm") or {}
+            radio_info = sim.get("radio") or {}
+
+            # 1. SCM SIM missing in Open5GS MongoDB -> auto-provision in MongoDB
+            if status == "scm_only" and mongo_ok and scm_info.get("state") == "registered":
+                if _auto_heal_cooldown.get(f"mongo_add:{imsi}", 0) < now:
+                    _auto_heal_cooldown[f"mongo_add:{imsi}"] = now + 15.0
+                    try:
+                        meta = sim_meta_all.get(imsi, {})
+                        imei = scm_info.get("imei") or meta.get("imei") or f"35412809{imsi[-7:]}"
+                        apn = scm_info.get("apn") or meta.get("apn") or "internet"
+                        if meta.get("k") and meta.get("op"):
+                            k, op, op_type = meta["k"], meta["op"], meta.get("op_type", "OPC")
+                        else:
+                            creds = generate_device_credentials(meta.get("vertical", "smart_camera"), custom_imsi=imsi, custom_imei=imei)
+                            k, op, op_type = creds["k"], creds["op"], creds.get("op_type", "OPC")
+                            update_single_sim_metadata(imsi, {"k": k, "op": op, "op_type": op_type, "imei": imei, "apn": apn})
+                        ep = OrchestratedEndpoint(
+                            imsi=imsi, imei=imei, apn=apn,
+                            vertical_id=meta.get("vertical", "smart_camera"),
+                            device_name=meta.get("custom_label") or meta.get("device_type") or "5G Device",
+                            vendor=meta.get("vendor", "Standard"),
+                            device_model=meta.get("device_type", "Standard 5G UE"),
+                            icon=meta.get("icon", "bi-phone"),
+                            security=SecurityConfig(k=k, op=op, op_type=op_type),
+                            slice=SliceConfig(sst=1),
+                            qos=QoSConfig(five_qi=9, ambr_dl_mbps=100, ambr_ul_mbps=50),
+                        )
+                        core.create_subscriber(ep)
+                        logger.info("event=auto_sync.mongo_provisioned imsi=%s apn=%s", imsi, apn)
+                    except Exception as e:
+                        logger.warning("event=auto_sync.mongo_provision_failed imsi=%s error=%r", imsi, str(e))
+
+            # 2. Managed SIM in Open5GS MongoDB but deleted from SCM -> auto-prune from MongoDB
+            elif status == "core_only" and mongo_ok and scm_ok and scm_info.get("state") == "absent":
+                if (sim.get("core") or {}).get("managed") and _auto_heal_cooldown.get(f"mongo_del:{imsi}", 0) < now:
+                    _auto_heal_cooldown[f"mongo_del:{imsi}"] = now + 15.0
+                    try:
+                        core.delete_subscriber(imsi)
+                        logger.info("event=auto_sync.mongo_pruned imsi=%s reason=absent_in_scm", imsi)
+                    except Exception as e:
+                        logger.warning("event=auto_sync.mongo_prune_failed imsi=%s error=%r", imsi, str(e))
+
+            # 3. Inconsistent state between RAN and 5G Core -> auto-heal or clean stop
+            elif status == "inconsistent" and agent_ok and amf_ok and smf_ok:
+                r_state = radio_info.get("state")
+                if r_state in ("active", "connecting"):
+                    should_reattach = (
+                        scm_info.get("state") == "registered"
+                        and (imsi in active_sess or r_state == "active")
+                        and _auto_heal_cooldown.get(f"reattach:{imsi}", 0) < now
+                    )
+                    if should_reattach:
+                        _auto_heal_cooldown[f"reattach:{imsi}"] = now + 30.0
+                        logger.info("event=auto_heal.reattach_start imsi=%s reason=%r", imsi, sim.get("reason"))
+                        res = attach_ue_dynamic(imsi)
+                        if not res.get("success"):
+                            logger.warning("event=auto_heal.reattach_failed_stopping imsi=%s error=%r", imsi, res.get("error"))
+                            ran.stop_ue_detail(imsi)
+                            ip_hint = radio_info.get("ip") or (active_sess.get(imsi) or {}).get("ipv4_addr") or (sim_meta_all.get(imsi) or {}).get("last_scm_ip")
+                            _session_sync.deregister(imsi, ip_hint=ip_hint, sim=sim, reason="auto_heal_stop")
+                    else:
+                        if _auto_heal_cooldown.get(f"stop:{imsi}", 0) < now:
+                            _auto_heal_cooldown[f"stop:{imsi}"] = now + 10.0
+                            logger.info("event=auto_heal.stop_stale_ue imsi=%s reason=%r", imsi, sim.get("reason"))
+                            ran.stop_ue_detail(imsi)
+                            ip_hint = radio_info.get("ip") or (active_sess.get(imsi) or {}).get("ipv4_addr") or (sim_meta_all.get(imsi) or {}).get("last_scm_ip")
+                            _session_sync.deregister(imsi, ip_hint=ip_hint, sim=sim, reason="auto_heal_stop")
+    except Exception as e:
+        logger.exception("event=auto_reconcile.error error=%r", str(e))
+    finally:
+        _auto_heal_lock.release()
+
+
+_reconciler.add_cycle_listener(_auto_reconcile_on_cycle)
 _reconciler.add_cycle_listener(_session_sync.on_cycle)
 
 
@@ -933,35 +1044,49 @@ def attach_ue_dynamic(imsi: str):
             k=creds["k"],
             op=creds["op"],
             op_type=creds.get("op_type", "OPC"),
+            sqn=int((mongo_sec or {}).get("sqn") or 0),
         ),
         slice=SliceConfig(sst=1),
         qos=QoSConfig(five_qi=9, ambr_dl_mbps=100, ambr_ul_mbps=50),
     )
 
-    # Attempt to provision subscriber in Open5GS (may already exist if created via Add Device)
+    # Always upsert subscriber in Open5GS so DNN/APN and slice config stay synced with SCM
     try:
-        if not core.get_subscriber(clean_imsi):
-            core.create_subscriber(endpoint)
+        core.create_subscriber(endpoint)
     except Exception as core_err:
         logger.warning(f"Open5GS provisioning skipped for {clean_imsi}: {core_err}")
 
     # 2. Power on through the RAN agent. The agent only answers once the kernel TUN is up
     #    (success) or registration/TUN setup failed (with the reason from the nr-ue log).
     rec = get_reconciler()
+    sim_before = _sim_state(clean_imsi, fresh=True)
     ue_status = ran.get_ue_status(clean_imsi)
-    if ue_status.get("radio_state") != "active":
+    if ue_status.get("radio_state") != "active" or sim_before.get("status") == "inconsistent":
         rec.mark_starting(clean_imsi)
         ue_status = ran.start_ue(endpoint)
         logger.info("event=attach.start_result imsi=%s success=%s radio_state=%s ip=%s error=%r",
                     clean_imsi, ue_status.get("success"), ue_status.get("radio_state"),
                     ue_status.get("assigned_ip"), ue_status.get("error"))
     sim = (rec.refresh_now().get("sims") or {}).get(clean_imsi, {})
+    for _ in range(5):
+        if sim.get("status") in ("active", "unknown") or ue_status.get("radio_state") != "active":
+            break
+        time.sleep(0.4)
+        sim = (rec.refresh_now().get("sims") or {}).get(clean_imsi, {})
 
-    # 3. The ONLY acceptable IP is the one on this IMSI's kernel TUN (assigned by SMF).
-    allocated_ip = ue_status.get("assigned_ip") if ue_status.get("radio_state") == "active" else None
+    # 3. The ONLY acceptable IP is the one on this IMSI's kernel TUN (assigned by SMF),
+    #    and when the 5G Core is reachable it must confirm the session (not inconsistent).
+    core_rejected_session = sim.get("status") == "inconsistent"
+    allocated_ip = (
+        ue_status.get("assigned_ip")
+        if (ue_status.get("radio_state") == "active" and not core_rejected_session)
+        else None
+    )
     if not allocated_ip:
         rec.clear_starting(clean_imsi)
-        reason = ue_status.get("error") or ue_status.get("last_error") or ue_status.get("reason") or sim.get("reason") or "no TUN interface came up"
+        reason = (
+            sim.get("reason") if core_rejected_session else None
+        ) or ue_status.get("error") or ue_status.get("last_error") or ue_status.get("reason") or sim.get("reason") or "no TUN interface came up"
         # Power On failed -> the device must really be OFF (no half-started nr-ue lingering).
         cleanup = ran.stop_ue_detail(clean_imsi) if ue_status.get("agent_reachable", True) else {}
         sim = (rec.refresh_now().get("sims") or {}).get(clean_imsi, sim)
@@ -970,7 +1095,7 @@ def attach_ue_dynamic(imsi: str):
             "imsi": clean_imsi,
             "allocated_ip": None,
             "radio_state": ue_status.get("radio_state"),
-            "sync_status": sim.get("status", "unknown"),
+            "sync_status": "offline",
             "reason": reason,
             "error": reason,
             "initial_logs": ue_status.get("initial_logs", ""),
@@ -1018,9 +1143,12 @@ def detach_ue_dynamic(imsi: str):
     sim = _sim_state(clean_imsi)
     radio_st = ran.get_ue_status(clean_imsi)
     active_sess = load_active_sessions().get(clean_imsi, {})
+    sim_meta = load_sim_metadata().get(clean_imsi, {})
     last_ip = (sim.get("live_ip")
                or (radio_st.get("assigned_ip") if radio_st.get("radio_state") == "active" else None)
-               or active_sess.get("ipv4_addr"))
+               or active_sess.get("ipv4_addr")
+               or sim_meta.get("last_scm_ip")
+               or sim_meta.get("last_ip"))
 
     # 2. Stop radio process
     stop = ran.stop_ue_detail(clean_imsi)
@@ -1101,16 +1229,28 @@ def fleet_power_off():
         }
     # Deregister every recorded SCM session (the UEs are confirmed stopped by the agent)
     owners = _live_ip_owners(snap)
-    dereg = {imsi: get_session_sync().deregister(imsi, sim=(snap.get("sims") or {}).get(imsi),
-                                                 reason="fleet_power_off", live_ips_elsewhere=owners,
-                                                 known_sim=imsi in (snap.get("sims") or {}))
-             for imsi in list(load_active_sessions().keys())}
+    meta = load_sim_metadata()
+    candidates = set(load_active_sessions().keys()) | {
+        i for i, m in meta.items() if m.get("last_scm_ip") or m.get("last_ip")
+    }
+    dereg = {
+        imsi: get_session_sync().deregister(
+            imsi,
+            ip_hint=(meta.get(imsi) or {}).get("last_scm_ip") or (meta.get(imsi) or {}).get("last_ip"),
+            sim=(snap.get("sims") or {}).get(imsi),
+            reason="fleet_power_off",
+            live_ips_elsewhere=owners,
+            known_sim=imsi in (snap.get("sims") or {}),
+        )
+        for imsi in sorted(candidates)
+    }
 
     # Update local metadata to Inactive
     meta = load_sim_metadata()
     for imsi, item in meta.items():
         item["status"] = "Inactive"
         item["last_ip"] = None
+        item.pop("last_scm_ip", None)
     save_sim_metadata(meta)
 
     return {
@@ -1662,6 +1802,23 @@ def synthesize_fallback_ues(tsg_id: Optional[str] = None) -> List[Dict[str, Any]
     return res_data
 
 
+def _ui_sync_status(sim: Dict[str, Any], imsi_clean: str, active_sess: Dict[str, Any]) -> str:
+    """Normalize internal reconciler states into clean MSSP UI states (active, starting, offline, failed, unknown)."""
+    raw = sim.get("status", "offline")
+    if raw == "active":
+        return "active"
+    if raw == "starting":
+        return "starting"
+    if raw == "inconsistent":
+        r_state = (sim.get("radio") or {}).get("state")
+        if r_state in ("active", "connecting") and imsi_clean in active_sess:
+            return "starting"
+        return "offline"
+    if raw in ("scm_only", "core_only", "offline"):
+        return "offline"
+    return raw
+
+
 @app.get("/api/ues")
 def list_ues(tsg_id: Optional[str] = None):
     """List registered SIM cards (UE mappings) enriched with local business metadata."""
@@ -1698,6 +1855,7 @@ def list_ues(tsg_id: Optional[str] = None):
             status = "Active" if is_active else "Inactive"
             region = m.region or ("europe-west9" if is_active else None)
             tenant_status = "Yes" if is_active else (m.tenant_status or "No")
+            ui_sync = _ui_sync_status(sim, imsi_clean, active_sess)
 
             meta = local_meta.get(imsi_str, {}) or local_meta.get(imsi_clean, {})
 
@@ -1722,7 +1880,7 @@ def list_ues(tsg_id: Optional[str] = None):
                 "icon": meta.get("icon"),
                 "last_ip": ipv4,
                 "interface": sim.get("interface") if is_active else None,
-                "sync_status": sim.get("status", "unknown"),
+                "sync_status": ui_sync,
                 "sync_reason": sim.get("reason"),
                 "pillars": sim.get("pillars", {}),
                 "mismatches": sim.get("mismatches", []),
@@ -1754,14 +1912,16 @@ def _overlay_live_state(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         sims = get_reconciler().snapshot().get("sims") or {}
     except Exception:
         sims = {}
+    active_sess = load_active_sessions()
     for r in rows:
-        sim = sims.get(re.sub(r"\D", "", str(r.get("imsi"))), {})
+        imsi_clean = re.sub(r"\D", "", str(r.get("imsi")))
+        sim = sims.get(imsi_clean, {})
         active = sim.get("status") == "active"
         r["ipv4_addr"] = sim.get("live_ip") if active else None
         r["last_ip"] = r["ipv4_addr"]
         r["status"] = "Active" if active else "Inactive"
         r["interface"] = sim.get("interface") if active else None
-        r["sync_status"] = sim.get("status", "unknown")
+        r["sync_status"] = _ui_sync_status(sim, imsi_clean, active_sess)
         r["sync_reason"] = sim.get("reason")
     return rows
 

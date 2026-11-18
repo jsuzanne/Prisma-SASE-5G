@@ -130,6 +130,11 @@ def cleanup_tuns():
     return agent.cleanup_orphan_tuns()
 
 
+@app.post("/api/agent/gnb/ensure")
+def ensure_gnb():
+    return agent.ensure_gnb()
+
+
 @app.get("/api/agent/ue/{imsi}/logs")
 def ue_logs(imsi: str, lines: int = 60):
     imsi = clean_imsi(imsi)

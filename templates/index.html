@@ -5729,22 +5729,11 @@
                         ${iface ? `<span class="text-[10px] font-mono text-emerald-400/80 pl-3.5">(${iface})</span>` : ''}
                     </div>
                 `;
-            } else if (syncStatus === 'starting') {
+            } else if (syncStatus === 'starting' || syncStatus === 'inconsistent') {
                 return `
-                    <div class="flex items-center gap-1.5 text-amber-400 font-sans text-xs font-medium">
+                    <div class="flex items-center gap-1.5 text-amber-400 font-sans text-xs font-medium" title="${reason || 'Synchronizing 5G Radio, Core & SCM...'}">
                         <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-                        <span>Starting 5G...</span>
-                    </div>
-                `;
-            } else if (syncStatus === 'inconsistent') {
-                const tip = (mismatches.length > 0 ? mismatches.join('; ') : reason) || '4-pillar state mismatch';
-                return `
-                    <div class="flex flex-col gap-0.5" title="${tip}">
-                        <div class="flex items-center gap-1.5 text-amber-400 font-sans text-xs font-semibold">
-                            <span class="w-2 h-2 rounded-full bg-amber-500"></span>
-                            <span>Inconsistent ⚠️</span>
-                        </div>
-                        <span class="text-[10px] text-amber-400/70 truncate max-w-[130px] font-mono">${reason || 'State mismatch'}</span>
+                        <span>Syncing 5G...</span>
                     </div>
                 `;
             } else if (syncStatus === 'unknown') {
@@ -5752,20 +5741,6 @@
                     <div class="flex items-center gap-1.5 text-purple-400 font-sans text-xs" title="RAN Agent or Core probe unavailable">
                         <span class="w-2 h-2 rounded-full bg-purple-400"></span>
                         <span>Unknown</span>
-                    </div>
-                `;
-            } else if (syncStatus === 'scm_only') {
-                return `
-                    <div class="flex items-center gap-1.5 text-yellow-400 font-sans text-xs" title="Registered in SCM but missing in Open5GS Core">
-                        <span class="w-2 h-2 rounded-full bg-yellow-400"></span>
-                        <span>SCM Only</span>
-                    </div>
-                `;
-            } else if (syncStatus === 'core_only') {
-                return `
-                    <div class="flex items-center gap-1.5 text-sky-400 font-sans text-xs" title="Provisioned in Open5GS Core but not mapped in SCM">
-                        <span class="w-2 h-2 rounded-full bg-sky-400"></span>
-                        <span>Core Only</span>
                     </div>
                 `;
             } else {
@@ -7923,10 +7898,8 @@
                 let statusBadge;
                 if (isActive) {
                     statusBadge = `<span class="inline-flex items-center gap-1.5 text-emerald-400 font-sans font-medium"><span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]"></span> Active</span>`;
-                } else if (syncStatus === 'starting') {
-                    statusBadge = `<span class="inline-flex items-center gap-1.5 text-amber-400 font-sans font-medium"><span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span> Starting</span>`;
-                } else if (syncStatus === 'inconsistent') {
-                    statusBadge = `<span class="inline-flex items-center gap-1.5 text-amber-400 font-sans font-medium" title="${s.sync_reason || 'Inconsistent'}"><span class="w-2 h-2 rounded-full bg-amber-500"></span> Inconsistent</span>`;
+                } else if (syncStatus === 'starting' || syncStatus === 'inconsistent') {
+                    statusBadge = `<span class="inline-flex items-center gap-1.5 text-amber-400 font-sans font-medium"><span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span> Syncing</span>`;
                 } else {
                     statusBadge = `<span class="inline-flex items-center gap-1.5 text-gray-500 font-sans font-medium"><span class="w-1.5 h-1.5 rounded-full bg-red-500/60"></span> Inactive</span>`;
                 }

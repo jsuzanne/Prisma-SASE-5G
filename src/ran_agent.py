@@ -128,10 +128,14 @@ def parse_ue_log(text: str) -> Dict[str, Any]:
         mm = re.search(r"AUTN validation ([^\n]+)", text)
         result["last_error"] = ("5G-AKA authentication failed (K/OPc in UE YAML != MongoDB subscriber)"
                                 + (f": AUTN validation {mm.group(1).strip()}" if mm else ""))
-    elif "FIVEG_SERVICES_NOT_ALLOWED" in text or "Registration reject" in text or "registration failed" in text.lower():
+    elif ("FIVEG_SERVICES_NOT_ALLOWED" in text
+          or "DNN_NOT_SUPPORTED" in text
+          or "PDU session establishment rejected" in text
+          or "Registration reject" in text
+          or "registration failed" in text.lower()):
         result["phase"] = "rejected"
         m = re.findall(r"\[error\]\s*(.+)", text)
-        result["last_error"] = m[-1].strip() if m else "Registration rejected by core"
+        result["last_error"] = m[-1].strip() if m else "Registration or PDU session rejected by core"
     tun_fail = re.findall(r"TUN configuration failure \[([^\]]*)\]", text)
     last_tun_ok = text.rfind("TUN interface[")
     last_tun_fail = text.rfind("TUN configuration failure")
@@ -252,7 +256,79 @@ class RanAgent:
         self._children: Dict[str, subprocess.Popen] = {}
         self._last_states: Dict[str, Dict[str, Any]] = {}
         self._state_lock = threading.Lock()
+        self._gnb_lock = threading.Lock()
+        self._last_gnb_heal = 0.0
         self._warned_pids: set = set()
+
+    def has_sctp_n2(self, port: int = 38412) -> bool:
+        """Check /proc/net/sctp/assocs for an active N2 SCTP association to AMF (port 38412)."""
+        assoc_path = os.path.join(self.proc_root, "net", "sctp", "assocs")
+        if not os.path.exists(assoc_path):
+            return True
+        try:
+            with open(assoc_path) as f:
+                text = f.read()
+            return any(f" {port} " in line for line in text.splitlines())
+        except Exception:
+            return True
+
+    def ensure_gnb(self, timeout_s: float = 5.0) -> Dict[str, Any]:
+        """Ensure nr-gnb is running AND has an active SCTP N2 association to AMF."""
+        gnb_bin = os.path.join(self.ueransim_dir, "build", "nr-gnb")
+        gnb_cfg = os.path.join(self.ueransim_dir, "config", "open5gs-gnb.yaml")
+        procs = self.scan_processes()
+        n2_ok = self.has_sctp_n2()
+        if procs["gnbs"] and n2_ok:
+            return {"ok": True, "restarted": False, "pids": [g["pid"] for g in procs["gnbs"]], "n2_connected": True}
+        if not os.path.isfile(gnb_bin) or not os.path.isfile(gnb_cfg):
+            return {"ok": bool(procs["gnbs"]), "restarted": False, "pids": [g["pid"] for g in procs["gnbs"]], "n2_connected": n2_ok}
+
+        with self._gnb_lock:
+            procs = self.scan_processes()
+            n2_ok = self.has_sctp_n2()
+            if procs["gnbs"] and n2_ok:
+                return {"ok": True, "restarted": False, "pids": [g["pid"] for g in procs["gnbs"]], "n2_connected": True}
+
+            self._last_gnb_heal = time.monotonic()
+            old_pids = [g["pid"] for g in procs["gnbs"]]
+            for sig, wait in ((signal.SIGTERM, 0.8), (signal.SIGKILL, 0.5)):
+                curr = [g["pid"] for g in self.scan_processes()["gnbs"]]
+                if not curr:
+                    break
+                for pid in curr:
+                    try:
+                        os.kill(pid, sig)
+                    except Exception:
+                        pass
+                time.sleep(wait)
+
+            gnb_log = os.path.join(LOG_DIR, "nr-gnb.log")
+            try:
+                log_fp = open(gnb_log, "w")
+                subprocess.Popen(
+                    ["./build/nr-gnb", "-c", "./config/open5gs-gnb.yaml"],
+                    cwd=self.ueransim_dir, stdout=log_fp, stderr=subprocess.STDOUT,
+                    stdin=subprocess.DEVNULL, start_new_session=True, close_fds=True,
+                )
+                log_fp.close()
+            except Exception as e:
+                event(logging.ERROR, "gnb.restart_failed", error=str(e), old_pids=old_pids)
+                return {"ok": False, "restarted": True, "pids": [], "n2_connected": False, "error": str(e)}
+
+            deadline = time.monotonic() + timeout_s
+            while time.monotonic() < deadline:
+                procs = self.scan_processes()
+                n2_ok = self.has_sctp_n2()
+                if procs["gnbs"] and n2_ok:
+                    break
+                time.sleep(0.25)
+
+            procs = self.scan_processes()
+            n2_ok = self.has_sctp_n2()
+            ok = bool(procs["gnbs"]) and n2_ok
+            event(logging.INFO if ok else logging.WARNING, "gnb.auto_heal",
+                  ok=ok, old_pids=old_pids, new_pids=[g["pid"] for g in procs["gnbs"]], n2_connected=n2_ok)
+            return {"ok": ok, "restarted": True, "pids": [g["pid"] for g in procs["gnbs"]], "n2_connected": n2_ok}
 
     # ---- paths -----------------------------------------------------------
     def config_path(self, imsi: str) -> str:
@@ -352,6 +428,12 @@ class RanAgent:
     def telemetry(self) -> Dict[str, Any]:
         t0 = time.monotonic()
         procs = self.scan_processes()
+        n2_ok = self.has_sctp_n2()
+        if (not procs["gnbs"] or not n2_ok) and (time.monotonic() - self._last_gnb_heal) > 10.0:
+            if os.path.isfile(os.path.join(self.ueransim_dir, "build", "nr-gnb")):
+                self.ensure_gnb(timeout_s=3.0)
+                procs = self.scan_processes()
+                n2_ok = self.has_sctp_n2()
         tuns = self.scan_tuns()
         imsis = {p["imsi"] for p in procs["ues"] if p["imsi"]} | set(self._known_log_imsis())
         logs = {i: parse_ue_log(self.read_log(i)) for i in imsis}
@@ -371,7 +453,12 @@ class RanAgent:
         return {
             "ok": True,
             "ts": _now(),
-            "gnb": {"running": bool(procs["gnbs"]), "pids": [g["pid"] for g in procs["gnbs"]]},
+            "gnb": {
+                "running": bool(procs["gnbs"]) and n2_ok,
+                "process_alive": bool(procs["gnbs"]),
+                "n2_connected": n2_ok,
+                "pids": [g["pid"] for g in procs["gnbs"]],
+            },
             "processes": [{k: p[k] for k in ("pid", "imsi")} for p in procs["ues"]],
             "unidentified_processes": [p for p in procs["ues"] if not p["imsi"]],
             "tuns": tuns,
@@ -422,6 +509,10 @@ class RanAgent:
         if not yaml_content or f"imsi-{imsi}" not in yaml_content:
             event(logging.ERROR, "ue.start.rejected", imsi, error="YAML missing or SUPI does not match IMSI")
             return {"success": False, "imsi": imsi, "error": "YAML missing or SUPI does not match IMSI"}
+
+        # Ensure nr-gnb is running and has an active N2 SCTP link to AMF before spawning nr-ue
+        if os.path.isfile(os.path.join(self.ueransim_dir, "build", "nr-gnb")):
+            self.ensure_gnb(timeout_s=4.0)
 
         existing = self._pids_for(imsi)
         if existing:

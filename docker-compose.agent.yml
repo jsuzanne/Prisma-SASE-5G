@@ -10,6 +10,8 @@ services:
     cap_add:
       - NET_ADMIN
       - KILL
+    security_opt:
+      - apparmor:unconfined
     devices:
       - /dev/net/tun:/dev/net/tun
     volumes:

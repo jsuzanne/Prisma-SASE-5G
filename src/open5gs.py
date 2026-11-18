@@ -117,28 +117,36 @@ class Open5GSClient:
     def build_subscriber_document(self, endpoint: OrchestratedEndpoint) -> Dict[str, Any]:
         """Generate Open5GS v2.8.0 MongoDB subscriber document."""
         sec_dict = endpoint.security.to_mongo_security()
-        
-        session_doc = {
-            "name": endpoint.apn,
-            "type": 3,  # IPv4
-            "ambr": {
-                "downlink": {"value": endpoint.qos.ambr_dl_mbps, "unit": 3},
-                "uplink": {"value": endpoint.qos.ambr_ul_mbps, "unit": 3},
-            },
-            "qos": {
-                "index": endpoint.qos.five_qi,
-                "arp": {
-                    "priority_level": 8,
-                    "pre_emption_capability": 1,
-                    "pre_emption_vulnerability": 1,
+
+        apns = [endpoint.apn]
+        for fallback_apn in ("internet", "sasetest"):
+            if fallback_apn and fallback_apn not in apns:
+                apns.append(fallback_apn)
+
+        sessions = [
+            {
+                "name": apn_name,
+                "type": 3,  # IPv4
+                "ambr": {
+                    "downlink": {"value": endpoint.qos.ambr_dl_mbps, "unit": 3},
+                    "uplink": {"value": endpoint.qos.ambr_ul_mbps, "unit": 3},
                 },
-            },
-        }
+                "qos": {
+                    "index": endpoint.qos.five_qi,
+                    "arp": {
+                        "priority_level": 8,
+                        "pre_emption_capability": 1,
+                        "pre_emption_vulnerability": 1,
+                    },
+                },
+            }
+            for apn_name in apns
+        ]
 
         slice_doc: Dict[str, Any] = {
             "sst": endpoint.slice.sst,
             "default_indicator": True,
-            "session": [session_doc],
+            "session": sessions,
         }
         if endpoint.slice.sd:
             slice_doc["sd"] = endpoint.slice.sd

@@ -367,6 +367,8 @@ def update_single_sim_metadata(imsi: str, data: Dict[str, Any], target_dir: Opti
             current[imsi].pop(key, None)  # Remove the key entirely
         else:
             current[imsi][key] = value
+            if key == "last_ip" and isinstance(value, str) and value.strip():
+                current[imsi]["last_scm_ip"] = value.strip()
     save_sim_metadata(current, target_dir)
 
 
