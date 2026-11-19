@@ -5,13 +5,22 @@
 (function () {
   'use strict';
 
+  const openModal = (targetId) => {
+    const dialog = document.getElementById(targetId);
+    if (dialog && typeof dialog.showModal === 'function') {
+      dialog.showModal();
+    }
+  };
+
   const triggers = document.querySelectorAll('[data-dialog-target]');
-  triggers.forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const targetId = btn.getAttribute('data-dialog-target');
-      const dialog = document.getElementById(targetId);
-      if (dialog && typeof dialog.showModal === 'function') {
-        dialog.showModal();
+  triggers.forEach((el) => {
+    el.addEventListener('click', () => {
+      openModal(el.getAttribute('data-dialog-target'));
+    });
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        openModal(el.getAttribute('data-dialog-target'));
       }
     });
   });
