@@ -23,7 +23,9 @@
       <div class="nav__links">
         <a href="https://stigix.io" target="_blank" rel="noopener noreferrer" class="nav__pill">stigix.io ↗</a>
         <a href="https://www.paloaltonetworks.com/sase/5g-security" target="_blank" rel="noopener noreferrer" class="nav__pill nav__pill--panw">
-          <span class="panw-dot" aria-hidden="true"></span>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="#FA582D" aria-hidden="true">
+            <path d="m10.278 15.443 1.705 1.705-3.426 3.426-3.427-3.426 8.592-8.591-1.705-1.705 3.426-3.426 3.427 3.426-8.592 8.591zM0 12.017l3.426 3.426 8.591-8.59-3.426-3.427L0 12.017zm11.983 5.13 3.426 3.427L24 11.983l-3.426-3.426-8.591 8.59z"/>
+          </svg>
           <span>Prisma SASE 5G ↗</span>
         </a>
       </div>
@@ -110,10 +112,10 @@
 
           <div class="launch-card__body">
             <p class="launch-card__desc">
-              Generates realistic L4/L7 enterprise SaaS traffic, IoT/VoIP streams, and security threat scenarios (EICAR, C2, DNS tunneling) over 5G tunnels with live <strong>Web Wireshark</strong> packet inspection.
+              Injects realistic L4/L7 enterprise SaaS traffic, VoIP RTP streams, and threat scenarios (EICAR, C2, DNS tunneling) directly into every emulated 5G UE tunnel (<code>uesimtun*</code>) with live <strong>Web Wireshark</strong> inspection.
             </p>
             <div class="chip-row">
-              <span class="chip">SaaS &amp; IoT Traffic</span>
+              <span class="chip">Per-UE Tunnel Injection</span>
               <span class="chip">Threat &amp; C2 Audit</span>
               <span class="chip">Web Wireshark</span>
             </div>
@@ -133,6 +135,8 @@
 
     <!-- ──────────────────────────────────────────────────────
          2. CONNECTED VECTOR ARCHITECTURE DIAGRAM
+         Flow: Stigix Engine ➔ ALL Emulated 5G UE Tunnels (uesimtun0..N) ➔ nr-gnb
+               ══(N2 + N3 GTP-U)══► VM 2 Open5GS Core ══(SPI N6)══► Prisma SASE 5G ➔ Targets
     ────────────────────────────────────────────────────── -->
     <section aria-labelledby="sec-architecture">
       <div class="sec-head">
@@ -144,7 +148,7 @@
 
       <div class="arch-board">
         <div class="svg-canvas-wrap">
-          <svg class="arch-svg" viewBox="0 0 1180 515" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="End-to-End 5G Lab Functional Architecture Diagram">
+          <svg class="arch-svg" viewBox="0 0 1180 520" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="End-to-End 5G Lab Functional Architecture Diagram">
             <defs>
               <!-- Glow Filters -->
               <filter id="glow-cyan" x="-20%" y="-20%" width="140%" height="140%">
@@ -188,7 +192,7 @@
             </defs>
 
             <!-- ═══════════════════════════════════════════════════════
-                 TOP LAYER: CONTROL PLANE & AAA SIGNALING BAR (y=16..94)
+                 TOP LAYER: CONTROL PLANE & AAA SIGNALING BAR (y=16..92)
             ═══════════════════════════════════════════════════════ -->
             <rect x="16" y="16" width="1148" height="76" rx="10" fill="#0d131d" stroke="#2a374b" stroke-dasharray="5 5"/>
             <rect x="32" y="8" width="320" height="16" fill="#0d131d"/>
@@ -233,190 +237,171 @@
 
             <!-- 3 VERTICAL CONTROL-PLANE DROP LINES INTO VM 1, VM 2, AND PRISMA SASE -->
             <!-- Drop 1 to VM 1 -->
-            <line x1="340" y1="92" x2="340" y2="144" stroke="#18c9ae" stroke-width="1.5" stroke-dasharray="4 4" class="flow-api" marker-end="url(#arrow-teal)"/>
-            <rect x="276" y="106" width="128" height="18" rx="4" fill="#0b1018" stroke="#1e293b"/>
-            <text x="340" y="118" fill="#18c9ae" font-size="9" text-anchor="middle" class="mono">Agent API :8081</text>
+            <line x1="270" y1="92" x2="270" y2="144" stroke="#18c9ae" stroke-width="1.5" stroke-dasharray="4 4" class="flow-api" marker-end="url(#arrow-teal)"/>
+            <rect x="200" y="106" width="140" height="18" rx="4" fill="#0b1018" stroke="#1e293b"/>
+            <text x="270" y="118" fill="#18c9ae" font-size="9" text-anchor="middle" class="mono">Agent API :8081 (nr-ue)</text>
 
             <!-- Drop 2 to VM 2 -->
-            <line x1="650" y1="92" x2="650" y2="144" stroke="#18c9ae" stroke-width="1.5" stroke-dasharray="4 4" class="flow-api" marker-end="url(#arrow-teal)"/>
-            <rect x="578" y="106" width="144" height="18" rx="4" fill="#0b1018" stroke="#1e293b"/>
-            <text x="650" y="118" fill="#18c9ae" font-size="9" text-anchor="middle" class="mono">Mongo :27017 · SMF :9090</text>
+            <line x1="658" y1="92" x2="658" y2="144" stroke="#18c9ae" stroke-width="1.5" stroke-dasharray="4 4" class="flow-api" marker-end="url(#arrow-teal)"/>
+            <rect x="586" y="106" width="144" height="18" rx="4" fill="#0b1018" stroke="#1e293b"/>
+            <text x="658" y="118" fill="#18c9ae" font-size="9" text-anchor="middle" class="mono">Mongo :27017 · SMF :9090</text>
 
-            <!-- Drop 3 (AAA Signaling with Lock) from 5GC-CP / Reconciler to Prisma SASE 5G -->
-            <line x1="965" y1="92" x2="965" y2="144" stroke="#00d4ff" stroke-width="1.5" stroke-dasharray="4 4" class="flow-api" marker-end="url(#arrow-cyan)"/>
-            <rect x="900" y="106" width="130" height="18" rx="4" fill="#0b1018" stroke="#00d4ff" stroke-opacity="0.4"/>
-            <text x="965" y="118" fill="#00d4ff" font-size="9" text-anchor="middle" class="mono">🔒 AAA / IP Binding</text>
+            <!-- Drop 3 (AAA Signaling with Lock) to Prisma SASE 5G -->
+            <line x1="975" y1="92" x2="975" y2="144" stroke="#00d4ff" stroke-width="1.5" stroke-dasharray="4 4" class="flow-api" marker-end="url(#arrow-cyan)"/>
+            <rect x="910" y="106" width="130" height="18" rx="4" fill="#0b1018" stroke="#00d4ff" stroke-opacity="0.4"/>
+            <text x="975" y="118" fill="#00d4ff" font-size="9" text-anchor="middle" class="mono">🔒 AAA / IP Binding</text>
 
 
             <!-- ═══════════════════════════════════════════════════════
-                 COLUMN 1: EMULATED 5G DEVICES (UEs + eSIMs) (x=16..202)
+                 VM 1 ENCLOSURE: STIGIX GENERATOR ➔ ALL EMULATED 5G UEs (uesimtun0..N) ➔ nr-gnb
+                 (x=16..452, y=146..496)
             ═══════════════════════════════════════════════════════ -->
-            <text x="22" y="158" fill="#94a3b8" font-size="10" font-weight="700" letter-spacing="1" class="mono">EMULATED 5G UEs</text>
+            <rect x="16" y="146" width="436" height="350" rx="12" fill="#0e1520" stroke="#18c9ae" stroke-opacity="0.55" stroke-dasharray="6 4"/>
+            <text x="30" y="168" fill="#18c9ae" font-size="10.5" font-weight="700" class="mono">VM 1 · 5G RAN, EMULATED UEs &amp; STIGIX ENGINE</text>
+            <text x="438" y="168" fill="#7c8ea6" font-size="9.5" text-anchor="end" class="mono">10.10.10.2</text>
 
-            <!-- UE 1: Mobile Users -->
-            <g class="svg-node" data-dialog-target="modal-ran" tabindex="0" role="button" aria-label="Mobile Users 5G eSIM">
-              <circle cx="52" cy="216" r="28" fill="#0d1826" stroke="#00d4ff" stroke-width="2" filter="url(#glow-cyan)"/>
-              <!-- Smartphone Icon -->
-              <rect x="44" y="203" width="16" height="26" rx="2.5" stroke="#00d4ff" stroke-width="1.8"/>
-              <circle cx="52" cy="224" r="1.2" fill="#00d4ff"/>
-              <!-- 5G SIM Badge -->
-              <rect x="74" y="186" width="52" height="16" rx="8" fill="#0b1524" stroke="#00d4ff" stroke-width="1.2"/>
-              <text x="100" y="197" fill="#00d4ff" font-size="8.5" font-weight="700" text-anchor="middle" class="mono">5G eSIM</text>
-              <text x="90" y="218" fill="#ffffff" font-size="12" font-weight="700">Mobile Users</text>
-              <text x="90" y="233" fill="#7c8ea6" font-size="9.5" class="mono">Phones · SST 1</text>
-            </g>
-            <!-- Line from UE 1 to VM 1 -->
-            <line x1="184" y1="216" x2="230" y2="216" stroke="#00d4ff" stroke-width="1.8" stroke-dasharray="4 3" class="flow-data" marker-end="url(#arrow-cyan)"/>
+            <!-- LEFT INSIDE VM 1: Stigix 5G Lab Traffic Generator (x=28..184) -->
+            <g class="svg-node" data-dialog-target="modal-stigixlab" tabindex="0" role="button" aria-label="Stigix 5G Lab Traffic Engine">
+              <rect x="28" y="182" width="154" height="300" rx="9" fill="#141e2d" stroke="#00d4ff" stroke-opacity="0.5"/>
+              <text x="105" y="204" fill="#ffffff" font-size="11.5" font-weight="700" text-anchor="middle">Stigix 5G Lab</text>
+              <text x="105" y="218" fill="#00d4ff" font-size="8.8" text-anchor="middle" class="mono">stigix5glab.stigix.io</text>
+              <text x="105" y="232" fill="#94a3b8" font-size="8" text-anchor="middle" class="mono">Binds to ALL uesimtun*</text>
 
-            <!-- UE 2: 5G Branches & POS -->
-            <g class="svg-node" data-dialog-target="modal-ran" tabindex="0" role="button" aria-label="5G Branches and Retail POS">
-              <circle cx="52" cy="318" r="28" fill="#0d1b22" stroke="#18c9ae" stroke-width="2" filter="url(#glow-teal)"/>
-              <!-- Branch Router Icon -->
-              <rect x="40" y="312" width="24" height="14" rx="2" stroke="#18c9ae" stroke-width="1.8"/>
-              <line x1="46" y1="304" x2="46" y2="312" stroke="#18c9ae" stroke-width="1.8"/>
-              <line x1="58" y1="304" x2="58" y2="312" stroke="#18c9ae" stroke-width="1.8"/>
-              <!-- 5G SIM Badge -->
-              <rect x="74" y="288" width="52" height="16" rx="8" fill="#0b1524" stroke="#18c9ae" stroke-width="1.2"/>
-              <text x="100" y="299" fill="#18c9ae" font-size="8.5" font-weight="700" text-anchor="middle" class="mono">5G SIM</text>
-              <text x="90" y="320" fill="#ffffff" font-size="12" font-weight="700">Branches &amp; POS</text>
-              <text x="90" y="335" fill="#7c8ea6" font-size="9.5" class="mono">Retail · SST 1</text>
-            </g>
-            <!-- Line from UE 2 to VM 1 -->
-            <line x1="184" y1="318" x2="230" y2="318" stroke="#18c9ae" stroke-width="1.8" stroke-dasharray="4 3" class="flow-data" marker-end="url(#arrow-teal)"/>
+              <!-- 4 Traffic Modules stacked cleanly -->
+              <rect x="38" y="244" width="134" height="48" rx="6" fill="#0b111a" stroke="#223044"/>
+              <text x="105" y="263" fill="#ffffff" font-size="9.5" font-weight="700" text-anchor="middle" class="mono">① SaaS &amp; HTTP/S</text>
+              <text x="105" y="278" fill="#7c8ea6" font-size="8.2" text-anchor="middle" class="mono">Enterprise App Traffic</text>
 
-            <!-- UE 3: IoT / OT Devices -->
-            <g class="svg-node" data-dialog-target="modal-ran" tabindex="0" role="button" aria-label="IoT and OT Infrastructure">
-              <circle cx="52" cy="420" r="28" fill="#1f1412" stroke="#fa582d" stroke-width="2"/>
-              <!-- Industrial Robot / Sensor Icon -->
-              <circle cx="52" cy="420" r="6" stroke="#fa582d" stroke-width="1.8"/>
-              <path d="M52 406v5m0 18v5M38 420h5m18 0h5" stroke="#fa582d" stroke-width="1.8"/>
-              <!-- 5G SIM Badge -->
-              <rect x="74" y="390" width="52" height="16" rx="8" fill="#1f1412" stroke="#fa582d" stroke-width="1.2"/>
-              <text x="100" y="401" fill="#fa582d" font-size="8.5" font-weight="700" text-anchor="middle" class="mono">5G SIM</text>
-              <text x="90" y="422" fill="#ffffff" font-size="12" font-weight="700">IoT / OT Fleet</text>
-              <text x="90" y="437" fill="#7c8ea6" font-size="9.5" class="mono">Robots · EV · CCTV</text>
-            </g>
-            <!-- Line from UE 3 to VM 1 -->
-            <line x1="184" y1="420" x2="230" y2="420" stroke="#fa582d" stroke-width="1.8" stroke-dasharray="4 3" class="flow-data" marker-end="url(#arrow-amber)"/>
+              <rect x="38" y="300" width="134" height="48" rx="6" fill="#0b111a" stroke="#223044"/>
+              <text x="105" y="319" fill="#ffffff" font-size="9.5" font-weight="700" text-anchor="middle" class="mono">② Voice RTP &amp; IoT</text>
+              <text x="105" y="334" fill="#7c8ea6" font-size="8.2" text-anchor="middle" class="mono">MOS · Modbus · MQTT · RTSP</text>
 
+              <rect x="38" y="356" width="134" height="48" rx="6" fill="#0b111a" stroke="#223044"/>
+              <text x="105" y="375" fill="#ffffff" font-size="9.5" font-weight="700" text-anchor="middle" class="mono">③ Threat &amp; C2 Audit</text>
+              <text x="105" y="390" fill="#7c8ea6" font-size="8.2" text-anchor="middle" class="mono">EICAR · DNS · URL · DLP</text>
 
-            <!-- ═══════════════════════════════════════════════════════
-                 COLUMN 2: VM 1 · 5G RAN & TRAFFIC (UERANSIM) (x=232..446)
-            ═══════════════════════════════════════════════════════ -->
-            <rect x="232" y="146" width="214" height="346" rx="12" fill="#0e1520" stroke="#18c9ae" stroke-opacity="0.5" stroke-dasharray="6 4"/>
-            <text x="246" y="168" fill="#18c9ae" font-size="10.5" font-weight="700" class="mono">VM 1 · 5G RAN</text>
-            <text x="434" y="168" fill="#7c8ea6" font-size="9.5" text-anchor="end" class="mono">10.10.10.2</text>
-
-            <!-- VM 1 Top Box: UERANSIM nr-gnb + nr-ue -->
-            <g class="svg-node" data-dialog-target="modal-ran" tabindex="0" role="button" aria-label="UERANSIM Radio Daemons">
-              <rect x="246" y="180" width="186" height="132" rx="9" fill="#151f2e" stroke="#2a3950"/>
-              <!-- Antenna Badge -->
-              <circle cx="272" cy="208" r="15" fill="#18c9ae" fill-opacity="0.12" stroke="#18c9ae" stroke-width="1.4"/>
-              <path d="M272 201v14m-6-9a8 8 0 0 1 12 0m-9 3a4 4 0 0 1 6 0" stroke="#18c9ae" stroke-width="1.4" stroke-linecap="round"/>
-              <text x="296" y="205" fill="#ffffff" font-size="12" font-weight="700">UERANSIM 5G RAN</text>
-              <text x="296" y="219" fill="#18c9ae" font-size="9.5" class="mono">nr-gnb &amp; nr-ue</text>
-
-              <rect x="256" y="232" width="166" height="30" rx="5" fill="#0c121b" stroke="#223044"/>
-              <text x="339" y="245" fill="#cbd5e1" font-size="9.5" font-weight="600" text-anchor="middle" class="mono">Per-SIM Tunnel Interfaces</text>
-              <text x="339" y="257" fill="#00d4ff" font-size="9" text-anchor="middle" class="mono">uesimtun0 … uesimtunN</text>
-
-              <rect x="256" y="270" width="166" height="30" rx="5" fill="#0c121b" stroke="#223044"/>
-              <text x="339" y="283" fill="#cbd5e1" font-size="9.5" font-weight="600" text-anchor="middle" class="mono">RAN Agent Daemon (:8081)</text>
-              <text x="339" y="295" fill="#7c8ea6" font-size="9" text-anchor="middle" class="mono">Dynamic YAML &amp; Supervision</text>
+              <rect x="38" y="412" width="134" height="56" rx="6" fill="#0b111a" stroke="#00d4ff" stroke-opacity="0.35"/>
+              <text x="105" y="432" fill="#00d4ff" font-size="9.5" font-weight="700" text-anchor="middle" class="mono">④ Web Wireshark</text>
+              <text x="105" y="446" fill="#cbd5e1" font-size="8.2" text-anchor="middle" class="mono">Live Capture on uesimtun*</text>
+              <text x="105" y="459" fill="#7c8ea6" font-size="7.8" text-anchor="middle" class="mono">&amp; Stateful PCAP Replay</text>
             </g>
 
-            <!-- Internal Arrow between Stigix Generator and uesimtun* -->
-            <line x1="339" y1="342" x2="339" y2="314" stroke="#00d4ff" stroke-width="1.6" stroke-dasharray="3 3" class="flow-data" marker-end="url(#arrow-cyan)"/>
-            <text x="348" y="331" fill="#00d4ff" font-size="8.5" class="mono">SO_BINDTODEVICE</text>
+            <!-- 3 FAN-OUT ARROWS FROM STIGIX INTO ALL 3 EMULATED 5G UE TUNNELS (uesimtun0..N) -->
+            <path d="M182 280 H202 V222 H218" stroke="#00d4ff" stroke-width="1.8" stroke-dasharray="4 3" class="flow-data" marker-end="url(#arrow-cyan)"/>
+            <line x1="182" y1="330" x2="218" y2="330" stroke="#18c9ae" stroke-width="1.8" stroke-dasharray="4 3" class="flow-data" marker-end="url(#arrow-teal)"/>
+            <path d="M182 380 H202 V436 H218" stroke="#fa582d" stroke-width="1.8" stroke-dasharray="4 3" class="flow-data" marker-end="url(#arrow-amber)"/>
 
-            <!-- VM 1 Bottom Box: Stigix 5G Lab Generator -->
-            <g class="svg-node" data-dialog-target="modal-stigixlab" tabindex="0" role="button" aria-label="Stigix 5G Lab Generator">
-              <rect x="246" y="344" width="186" height="134" rx="9" fill="#151f2e" stroke="#00d4ff" stroke-opacity="0.45"/>
-              <text x="258" y="365" fill="#ffffff" font-size="12" font-weight="700">Stigix 5G Lab Engine</text>
-              <text x="258" y="379" fill="#00d4ff" font-size="9.5" class="mono">stigix5glab.stigix.io</text>
+            <!-- RIGHT INSIDE VM 1: EMULATED 5G DEVICES (nr-ue + uesimtun*) & nr-gnb (x=220..440) -->
+            <!-- UE 1: Mobile Users (uesimtun0) -->
+            <g class="svg-node" data-dialog-target="modal-ran" tabindex="0" role="button" aria-label="Emulated Mobile Users uesimtun0">
+              <rect x="220" y="182" width="152" height="80" rx="8" fill="#141e2d" stroke="#00d4ff" stroke-opacity="0.55"/>
+              <circle cx="244" cy="216" r="14" fill="#0d1826" stroke="#00d4ff" stroke-width="1.6"/>
+              <rect x="239" y="208" width="10" height="16" rx="1.5" stroke="#00d4ff" stroke-width="1.4"/>
+              <text x="266" y="203" fill="#ffffff" font-size="10.5" font-weight="700">Mobile Users</text>
+              <text x="266" y="217" fill="#94a3b8" font-size="8.5" class="mono">Phones · Laptops</text>
+              <rect x="230" y="236" width="132" height="18" rx="4" fill="#09131e" stroke="#00d4ff" stroke-opacity="0.4"/>
+              <text x="296" y="248" fill="#00d4ff" font-size="8.5" font-weight="600" text-anchor="middle" class="mono">nr-ue · uesimtun0 (eSIM)</text>
+            </g>
 
-              <!-- 4 Mini Generator Modules (like Stigix Slide!) -->
-              <rect x="256" y="390" width="79" height="36" rx="5" fill="#0c121b" stroke="#223044"/>
-              <text x="295.5" y="405" fill="#ffffff" font-size="9" font-weight="600" text-anchor="middle" class="mono">① SaaS/HTTP</text>
-              <text x="295.5" y="418" fill="#7c8ea6" font-size="8" text-anchor="middle" class="mono">L7 App Flows</text>
+            <!-- UE 2: 5G Branches & POS (uesimtun1) -->
+            <g class="svg-node" data-dialog-target="modal-ran" tabindex="0" role="button" aria-label="Emulated 5G Branches and POS uesimtun1">
+              <rect x="220" y="290" width="152" height="80" rx="8" fill="#141e2d" stroke="#18c9ae" stroke-opacity="0.55"/>
+              <circle cx="244" cy="324" r="14" fill="#0d1b22" stroke="#18c9ae" stroke-width="1.6"/>
+              <rect x="236" y="320" width="16" height="9" rx="1.5" stroke="#18c9ae" stroke-width="1.4"/>
+              <line x1="240" y1="315" x2="240" y2="320" stroke="#18c9ae" stroke-width="1.4"/>
+              <line x1="248" y1="315" x2="248" y2="320" stroke="#18c9ae" stroke-width="1.4"/>
+              <text x="266" y="311" fill="#ffffff" font-size="10.5" font-weight="700">Branches &amp; POS</text>
+              <text x="266" y="325" fill="#94a3b8" font-size="8.5" class="mono">Retail · 5G Routers</text>
+              <rect x="230" y="344" width="132" height="18" rx="4" fill="#091618" stroke="#18c9ae" stroke-opacity="0.4"/>
+              <text x="296" y="356" fill="#18c9ae" font-size="8.5" font-weight="600" text-anchor="middle" class="mono">nr-ue · uesimtun1 (SIM)</text>
+            </g>
 
-              <rect x="343" y="390" width="79" height="36" rx="5" fill="#0c121b" stroke="#223044"/>
-              <text x="382.5" y="405" fill="#ffffff" font-size="9" font-weight="600" text-anchor="middle" class="mono">② Voice RTP</text>
-              <text x="382.5" y="418" fill="#7c8ea6" font-size="8" text-anchor="middle" class="mono">MOS &amp; Jitter</text>
+            <!-- UE 3: IoT / OT Fleet (uesimtun2..N) -->
+            <g class="svg-node" data-dialog-target="modal-ran" tabindex="0" role="button" aria-label="Emulated IoT and OT Fleet uesimtun2">
+              <rect x="220" y="398" width="152" height="84" rx="8" fill="#141e2d" stroke="#fa582d" stroke-opacity="0.55"/>
+              <circle cx="244" cy="432" r="14" fill="#1f1412" stroke="#fa582d" stroke-width="1.6"/>
+              <circle cx="244" cy="432" r="4" stroke="#fa582d" stroke-width="1.4"/>
+              <text x="266" y="419" fill="#ffffff" font-size="10.5" font-weight="700">IoT / OT Fleet</text>
+              <text x="266" y="433" fill="#94a3b8" font-size="8.5" class="mono">Robots · EV · CCTV</text>
+              <rect x="230" y="454" width="132" height="18" rx="4" fill="#1a1110" stroke="#fa582d" stroke-opacity="0.45"/>
+              <text x="296" y="466" fill="#ff9478" font-size="8.5" font-weight="600" text-anchor="middle" class="mono">nr-ue · uesimtun2..N</text>
+            </g>
 
-              <rect x="256" y="432" width="79" height="36" rx="5" fill="#0c121b" stroke="#223044"/>
-              <text x="295.5" y="447" fill="#ffffff" font-size="9" font-weight="600" text-anchor="middle" class="mono">③ Threat/C2</text>
-              <text x="295.5" y="460" fill="#7c8ea6" font-size="8" text-anchor="middle" class="mono">EICAR · DNS</text>
-
-              <rect x="343" y="432" width="79" height="36" rx="5" fill="#0c121b" stroke="#223044"/>
-              <text x="382.5" y="447" fill="#ffffff" font-size="9" font-weight="600" text-anchor="middle" class="mono">④ Wireshark</text>
-              <text x="382.5" y="460" fill="#7c8ea6" font-size="8" text-anchor="middle" class="mono">PCAP Replay</text>
+            <!-- Vertical Multiplexer Bar inside VM 1: nr-gnb (5G gNodeB Radio Tower) -->
+            <g class="svg-node" data-dialog-target="modal-ran" tabindex="0" role="button" aria-label="UERANSIM nr-gnb 5G Base Station">
+              <line x1="372" y1="222" x2="392" y2="222" stroke="#00d4ff" stroke-width="1.5"/>
+              <line x1="372" y1="330" x2="392" y2="330" stroke="#18c9ae" stroke-width="1.5"/>
+              <line x1="372" y1="438" x2="392" y2="438" stroke="#fa582d" stroke-width="1.5"/>
+              <rect x="392" y="182" width="48" height="300" rx="8" fill="#112229" stroke="#18c9ae" stroke-width="1.5"/>
+              <circle cx="416" cy="222" r="13" fill="#18c9ae" fill-opacity="0.16" stroke="#18c9ae" stroke-width="1.4"/>
+              <path d="M416 216v12m-5-8a7 7 0 0 1 10 0" stroke="#18c9ae" stroke-width="1.4" stroke-linecap="round"/>
+              <text x="416" y="345" fill="#ffffff" font-size="11" font-weight="700" text-anchor="middle" transform="rotate(-90 416 345)" class="mono">UERANSIM nr-gnb (5G RAN)</text>
             </g>
 
 
             <!-- ═══════════════════════════════════════════════════════
-                 INTER-VM BRIDGE (VM 1 ⇄ VM 2): N2 SIGNALING + N3 GTP-U PIPE
-                 (x=446..556)
+                 INTER-VM BRIDGE (VM 1 nr-gnb ⇄ VM 2 Open5GS): N2 + N3 GTP-U
+                 (x=440..562)
             ═══════════════════════════════════════════════════════ -->
             <!-- Top Inter-VM Link: N2 5G Signaling (Amber Dashed) -->
-            <text x="501" y="202" fill="#f59e0b" font-size="10" font-weight="700" text-anchor="middle" class="mono">N2 · Signaling</text>
-            <line x1="434" y1="216" x2="566" y2="216" stroke="#f59e0b" stroke-width="2.2" stroke-dasharray="5 4" class="flow-sig" marker-end="url(#arrow-amber)"/>
-            <text x="501" y="232" fill="#94a3b8" font-size="8.8" text-anchor="middle" class="mono">NGAP / SCTP :38412</text>
+            <text x="504" y="202" fill="#f59e0b" font-size="10" font-weight="700" text-anchor="middle" class="mono">N2 · Signaling</text>
+            <line x1="440" y1="216" x2="568" y2="216" stroke="#f59e0b" stroke-width="2.2" stroke-dasharray="5 4" class="flow-sig" marker-end="url(#arrow-amber)"/>
+            <text x="504" y="232" fill="#94a3b8" font-size="8.8" text-anchor="middle" class="mono">NGAP / SCTP :38412</text>
 
             <!-- Bottom Inter-VM Link: N3 GTP-U Encrypted Pipe (3D Cylinder Tunnel) -->
-            <text x="501" y="366" fill="#18c9ae" font-size="10" font-weight="700" text-anchor="middle" class="mono">N3 · GTP-U Tunnel</text>
+            <text x="504" y="366" fill="#18c9ae" font-size="10" font-weight="700" text-anchor="middle" class="mono">N3 · GTP-U Tunnel</text>
             <g filter="url(#glow-teal)">
-              <rect x="438" y="376" width="124" height="34" fill="url(#grad-n3)" stroke="#18c9ae" stroke-width="1.6"/>
-              <ellipse cx="438" cy="393" rx="6" ry="17" fill="#0d2926" stroke="#18c9ae" stroke-width="1.6"/>
-              <ellipse cx="562" cy="393" rx="6" ry="17" fill="#18c9ae" fill-opacity="0.35" stroke="#18c9ae" stroke-width="1.6"/>
+              <rect x="444" y="376" width="120" height="34" fill="url(#grad-n3)" stroke="#18c9ae" stroke-width="1.6"/>
+              <ellipse cx="444" cy="393" rx="6" ry="17" fill="#0d2926" stroke="#18c9ae" stroke-width="1.6"/>
+              <ellipse cx="564" cy="393" rx="6" ry="17" fill="#18c9ae" fill-opacity="0.35" stroke="#18c9ae" stroke-width="1.6"/>
             </g>
-            <line x1="448" y1="393" x2="552" y2="393" stroke="#ffffff" stroke-width="2" stroke-dasharray="6 6" class="flow-data" marker-end="url(#arrow-teal)"/>
-            <text x="501" y="426" fill="#94a3b8" font-size="8.8" text-anchor="middle" class="mono">UDP :2152 (User Plane)</text>
+            <line x1="454" y1="393" x2="554" y2="393" stroke="#ffffff" stroke-width="2" stroke-dasharray="6 6" class="flow-data" marker-end="url(#arrow-teal)"/>
+            <text x="504" y="426" fill="#94a3b8" font-size="8.8" text-anchor="middle" class="mono">UDP :2152 (All 5G UEs)</text>
 
 
             <!-- ═══════════════════════════════════════════════════════
-                 COLUMN 3: VM 2 · PRIVATE 5G CORE (OPEN5GS) (x=556..760)
+                 COLUMN 3: VM 2 · PRIVATE 5G CORE (OPEN5GS) (x=558..760)
             ═══════════════════════════════════════════════════════ -->
-            <rect x="556" y="146" width="204" height="346" rx="12" fill="#0e1520" stroke="#2c3b52" stroke-dasharray="6 4"/>
-            <text x="570" y="168" fill="#ffffff" font-size="10.5" font-weight="700" class="mono">VM 2 · 5G CORE</text>
+            <rect x="558" y="146" width="202" height="350" rx="12" fill="#0e1520" stroke="#2c3b52" stroke-dasharray="6 4"/>
+            <text x="572" y="168" fill="#ffffff" font-size="10.5" font-weight="700" class="mono">VM 2 · 5G CORE</text>
             <text x="748" y="168" fill="#7c8ea6" font-size="9.5" text-anchor="end" class="mono">10.10.10.1</text>
 
             <!-- VM 2 Top Box: 5GC-CP & MongoDB -->
             <g class="svg-node" data-dialog-target="modal-core" tabindex="0" role="button" aria-label="Open5GS Control Plane and MongoDB">
-              <rect x="570" y="180" width="176" height="96" rx="9" fill="#151f2e" stroke="#2a3950"/>
-              <text x="658" y="202" fill="#ffffff" font-size="12" font-weight="700" text-anchor="middle">5GC-CP (Open5GS)</text>
-              <text x="658" y="218" fill="#f59e0b" font-size="9.5" text-anchor="middle" class="mono">AMF · SMF · AUSF · UDR</text>
-              <rect x="582" y="228" width="152" height="36" rx="5" fill="#0c121b" stroke="#223044"/>
-              <text x="658" y="243" fill="#cbd5e1" font-size="9.5" font-weight="600" text-anchor="middle" class="mono">MongoDB Subscribers</text>
-              <text x="658" y="256" fill="#7c8ea6" font-size="8.5" text-anchor="middle" class="mono">IMSI · K/OPc · 5QI · AMBR</text>
+              <rect x="570" y="182" width="178" height="96" rx="9" fill="#151f2e" stroke="#2a3950"/>
+              <text x="659" y="204" fill="#ffffff" font-size="12" font-weight="700" text-anchor="middle">5GC-CP (Open5GS)</text>
+              <text x="659" y="219" fill="#f59e0b" font-size="9.5" text-anchor="middle" class="mono">AMF · SMF · AUSF · UDR</text>
+              <rect x="582" y="229" width="154" height="36" rx="5" fill="#0c121b" stroke="#223044"/>
+              <text x="659" y="244" fill="#cbd5e1" font-size="9.5" font-weight="600" text-anchor="middle" class="mono">MongoDB Subscribers</text>
+              <text x="659" y="257" fill="#7c8ea6" font-size="8.5" text-anchor="middle" class="mono">IMSI · K/OPc · 5QI · AMBR</text>
             </g>
 
             <!-- Internal N4 PFCP Link between SMF and UPF -->
-            <line x1="658" y1="276" x2="658" y2="342" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="3 3" class="flow-sig" marker-end="url(#arrow-amber)"/>
+            <line x1="659" y1="278" x2="659" y2="344" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="3 3" class="flow-sig" marker-end="url(#arrow-amber)"/>
 
-            <!-- Middle Oval: Service-Specific Network Slices (like Image 3) -->
-            <rect x="570" y="290" width="176" height="42" rx="21" fill="#0b1826" stroke="#00d4ff" stroke-dasharray="4 3"/>
-            <text x="658" y="307" fill="#00d4ff" font-size="9" font-weight="700" text-anchor="middle" class="mono">Service Network Slices</text>
-            <text x="658" y="321" fill="#cbd5e1" font-size="8.5" text-anchor="middle" class="mono">eMBB Data/Voice · URLLC · IoT</text>
+            <!-- Middle Oval: Service-Specific Network Slices -->
+            <rect x="570" y="292" width="178" height="42" rx="21" fill="#0b1826" stroke="#00d4ff" stroke-dasharray="4 3"/>
+            <text x="659" y="309" fill="#00d4ff" font-size="9" font-weight="700" text-anchor="middle" class="mono">Service Network Slices</text>
+            <text x="659" y="323" fill="#cbd5e1" font-size="8.5" text-anchor="middle" class="mono">eMBB Data/Voice · URLLC · IoT</text>
 
             <!-- VM 2 Bottom Box: UPF & MEC -->
             <g class="svg-node" data-dialog-target="modal-core" tabindex="0" role="button" aria-label="Open5GS UPF User Plane Function">
-              <rect x="570" y="344" width="176" height="134" rx="9" fill="#151f2e" stroke="#18c9ae" stroke-opacity="0.5"/>
-              <text x="658" y="368" fill="#ffffff" font-size="12" font-weight="700" text-anchor="middle">UPF + MEC</text>
-              <text x="658" y="383" fill="#18c9ae" font-size="9.5" text-anchor="middle" class="mono">User Plane Function</text>
+              <rect x="570" y="346" width="178" height="136" rx="9" fill="#151f2e" stroke="#18c9ae" stroke-opacity="0.5"/>
+              <text x="659" y="370" fill="#ffffff" font-size="12" font-weight="700" text-anchor="middle">UPF + MEC</text>
+              <text x="659" y="385" fill="#18c9ae" font-size="9.5" text-anchor="middle" class="mono">User Plane Function</text>
 
-              <rect x="582" y="395" width="152" height="34" rx="5" fill="#0c121b" stroke="#223044"/>
-              <text x="658" y="409" fill="#cbd5e1" font-size="9" font-weight="600" text-anchor="middle" class="mono">PDU Session IP Pool</text>
-              <text x="658" y="422" fill="#00d4ff" font-size="9" text-anchor="middle" class="mono">10.45.0.0/16 (ogstun)</text>
+              <rect x="582" y="397" width="154" height="34" rx="5" fill="#0c121b" stroke="#223044"/>
+              <text x="659" y="411" fill="#cbd5e1" font-size="9" font-weight="600" text-anchor="middle" class="mono">PDU Session IP Pool</text>
+              <text x="659" y="424" fill="#00d4ff" font-size="9" text-anchor="middle" class="mono">10.45.0.0/16 (ogstun)</text>
 
-              <rect x="582" y="436" width="152" height="30" rx="5" fill="#0c121b" stroke="#223044"/>
-              <text x="658" y="455" fill="#94a3b8" font-size="9" text-anchor="middle" class="mono">GTP-U Decap ➔ N6 Egress</text>
+              <rect x="582" y="438" width="154" height="30" rx="5" fill="#0c121b" stroke="#223044"/>
+              <text x="659" y="457" fill="#94a3b8" font-size="9" text-anchor="middle" class="mono">GTP-U Decap ➔ N6 Egress</text>
             </g>
 
 
             <!-- ═══════════════════════════════════════════════════════
                  SPI BRIDGE (VM 2 UPF ➔ PRISMA SASE 5G): 3D CYLINDER TUNNEL
-                 (x=746..876 — Exact match to Scenario 2 Slide!)
+                 (x=748..876)
             ═══════════════════════════════════════════════════════ -->
             <g class="svg-node" data-dialog-target="modal-sase" tabindex="0" role="button" aria-label="Service Provider Interconnect SPI Tunnel">
               <text x="811" y="362" fill="#fbbf24" font-size="10.5" font-weight="700" text-anchor="middle" class="mono">SPI · Interconnect</text>
@@ -435,12 +420,17 @@
                  COLUMN 4: PRISMA SASE 5G (SPN CLUSTERS) (x=876..1074)
             ═══════════════════════════════════════════════════════ -->
             <g class="svg-node" data-dialog-target="modal-sase" tabindex="0" role="button" aria-label="Prisma SASE 5G Security Stack">
-              <rect x="876" y="146" width="198" height="346" rx="12" fill="url(#grad-sase)" stroke="#00d4ff" stroke-width="1.8" filter="url(#glow-cyan)"/>
-              <text x="975" y="169" fill="#ffffff" font-size="12" font-weight="800" text-anchor="middle">Prisma SASE 5G</text>
+              <rect x="876" y="146" width="198" height="350" rx="12" fill="url(#grad-sase)" stroke="#00d4ff" stroke-width="1.8" filter="url(#glow-cyan)"/>
+
+              <!-- Official Palo Alto Networks 3-Bar Mark + Prisma SASE 5G Title -->
+              <g transform="translate(904, 156) scale(0.62)">
+                <path fill="#FA582D" d="m10.278 15.443 1.705 1.705-3.426 3.426-3.427-3.426 8.592-8.591-1.705-1.705 3.426-3.426 3.427 3.426-8.592 8.591zM0 12.017l3.426 3.426 8.591-8.59-3.426-3.427L0 12.017zm11.983 5.13 3.426 3.427L24 11.983l-3.426-3.426-8.591 8.59z"/>
+              </g>
+              <text x="984" y="169" fill="#ffffff" font-size="12" font-weight="800" text-anchor="middle">Prisma SASE 5G</text>
               <rect x="927" y="176" width="96" height="17" rx="4" fill="#00d4ff" fill-opacity="0.16" stroke="#00d4ff" stroke-opacity="0.5"/>
               <text x="975" y="187.5" fill="#00d4ff" font-size="8.5" font-weight="700" text-anchor="middle" class="mono">SPN CLUSTERS</text>
 
-              <!-- Security Services 2x4 Grid (like Scenario 2 Slide) -->
+              <!-- Security Services 2x4 Grid -->
               <rect x="888" y="204" width="40" height="22" rx="4" fill="#2a1617" stroke="#fa582d" stroke-width="1.1"/>
               <text x="908" y="218" fill="#ff9e85" font-size="8.5" font-weight="700" text-anchor="middle" class="mono">AIOps</text>
 
@@ -465,26 +455,33 @@
               <rect x="1023" y="231" width="40" height="22" rx="4" fill="#2a1617" stroke="#fa582d" stroke-width="1.1"/>
               <text x="1043" y="245" fill="#ff9e85" font-size="8" font-weight="700" text-anchor="middle" class="mono">ADV WF</text>
 
-              <!-- Prisma Access Centerpiece Circle (Connected to SPI Tunnel) -->
-              <circle cx="975" cy="306" r="28" fill="#071828" stroke="#00d4ff" stroke-width="2"/>
-              <path d="M975 288l-14 18 14 18 14-18-14-18z" fill="#00d4ff" fill-opacity="0.25" stroke="#00d4ff" stroke-width="1.5"/>
-              <text x="975" y="348" fill="#ffffff" font-size="11" font-weight="700" text-anchor="middle">Prisma Access</text>
+              <!-- Official Prisma Access Split-Prism + Double-Chevron Icon (Exact match to Scenario 2 Slide) -->
+              <circle cx="975" cy="306" r="30" fill="#061524" stroke="#00d4ff" stroke-width="2"/>
+              <g transform="translate(955, 286)">
+                <!-- Left Split Prism Facet with Inner Cutout -->
+                <path fill-rule="evenodd" clip-rule="evenodd" d="M16 2 L2 19 L16 37 Z M13.5 9.5 L6.2 18.5 L13.5 18.5 Z" fill="#00c8ff"/>
+                <!-- Middle Lower Prism Facet -->
+                <path d="M19 10 L26.5 23.5 L19 29 Z" fill="#00c8ff"/>
+                <!-- Right Fast-Forward Chevrons -->
+                <path d="M29 16 L34 20.5 L29 25 Z" fill="#00c8ff"/>
+                <path d="M34.5 16 L39.5 20.5 L34.5 25 Z" fill="#00c8ff"/>
+              </g>
+              <text x="975" y="350" fill="#ffffff" font-size="11" font-weight="700" text-anchor="middle">Prisma Access</text>
 
               <!-- Comprehensive 5G Security Enforcement Box -->
-              <rect x="888" y="360" width="174" height="118" rx="7" fill="#072232" stroke="#00d4ff" stroke-opacity="0.45"/>
-              <text x="898" y="378" fill="#ffffff" font-size="9.5" font-weight="700">5G Security Enforcement</text>
-              <text x="898" y="396" fill="#00d4ff" font-size="9" class="mono">• Subscriber ID (IMSI)</text>
-              <text x="898" y="413" fill="#00d4ff" font-size="9" class="mono">• Equipment ID (IMEI)</text>
-              <text x="898" y="430" fill="#00d4ff" font-size="9" class="mono">• Slice ID (SST / SD)</text>
-              <text x="898" y="447" fill="#00d4ff" font-size="9" class="mono">• APN &amp; Policy Group</text>
-              <text x="898" y="466" fill="#94a3b8" font-size="8" class="mono">Agentless Zero-Trust</text>
+              <rect x="888" y="362" width="174" height="120" rx="7" fill="#072232" stroke="#00d4ff" stroke-opacity="0.45"/>
+              <text x="898" y="380" fill="#ffffff" font-size="9.5" font-weight="700">5G Security Enforcement</text>
+              <text x="898" y="398" fill="#00d4ff" font-size="9" class="mono">• Subscriber ID (IMSI)</text>
+              <text x="898" y="415" fill="#00d4ff" font-size="9" class="mono">• Equipment ID (IMEI)</text>
+              <text x="898" y="432" fill="#00d4ff" font-size="9" class="mono">• Slice ID (SST / SD)</text>
+              <text x="898" y="449" fill="#00d4ff" font-size="9" class="mono">• APN &amp; Policy Group</text>
+              <text x="898" y="468" fill="#94a3b8" font-size="8" class="mono">Agentless Zero-Trust</text>
             </g>
 
 
             <!-- ═══════════════════════════════════════════════════════
                  COLUMN 5: EGRESS TARGETS (x=1074..1168)
             ═══════════════════════════════════════════════════════ -->
-            <!-- Egress Lines from Prisma SASE 5G -->
             <path d="M1074 306 H1090 V216 H1108" stroke="#00d4ff" stroke-width="1.8" marker-end="url(#arrow-cyan)"/>
             <line x1="1074" y1="306" x2="1108" y2="306" stroke="#00d4ff" stroke-width="1.8" marker-end="url(#arrow-cyan)"/>
             <path d="M1074 306 H1090 V406 H1108" stroke="#00d4ff" stroke-width="1.8" marker-end="url(#arrow-cyan)"/>
@@ -515,7 +512,7 @@
           <div class="legend-box">
             <span class="legend-item">
               <span class="legend-line legend-line--data" aria-hidden="true"></span>
-              <span>N3 GTP-U Tunnel (VM1 ➔ VM2)</span>
+              <span>Stigix ➔ uesimtun* ➔ N3 GTP-U</span>
             </span>
             <span class="legend-item">
               <span class="legend-line legend-line--spi" aria-hidden="true"></span>
@@ -546,7 +543,7 @@
             </div>
             <div class="outcome-metric">
               <div class="outcome-metric__label">Validation</div>
-              <div class="outcome-metric__val">L4/L7 + Threats</div>
+              <div class="outcome-metric__val">All 5G Tunnels</div>
             </div>
           </div>
         </div>
@@ -612,20 +609,20 @@
         <form method="dialog"><button type="submit" class="modal__close" autofocus>ESC</button></form>
       </div>
       <p class="modal__lead">
-        Stigix V3 validation platform routing realistic application traffic and attack simulations over the 5G data plane into Prisma SASE 5G.
+        Stigix V3 validation platform that binds directly to the Linux tunnel interfaces (<code>uesimtun0..N</code>) of all emulated 5G devices (Mobile Users, Branches/POS, and IoT/OT) to inject traffic across the 5G network.
       </p>
       <ul class="modal__list">
         <li>
-          <strong>L4/L7 Application &amp; IoT Traffic Generator</strong>
-          Generates enterprise SaaS flows, Custom TCP, VoIP RTP streams (MOS/Jitter scoring), and Stateful PCAP replays across 5G UE interfaces.
+          <strong>Per-Tunnel L4/L7 Traffic Injection (<code>SO_BINDTODEVICE</code>)</strong>
+          Routes enterprise SaaS/HTTPS flows, Custom TCP, VoIP RTP streams (MOS/Jitter scoring), and Stateful PCAP replays directly through each emulated 5G UE's dedicated <code>uesimtunX</code> interface.
         </li>
         <li>
           <strong>Zero-Trust Security &amp; Threat Validation</strong>
-          Executes URL category audits, DNS tunneling, EICAR malware downloads, Command &amp; Control (C2) beacons, and AI/DLP security tests to verify SCM policy enforcement.
+          Executes URL category audits, DNS tunneling, EICAR malware downloads, Command &amp; Control (C2) beacons, and AI/DLP security tests from any 5G SIM identity to verify SCM policy enforcement.
         </li>
         <li>
           <strong>Web Wireshark &amp; Live Packet Capture</strong>
-          Captures and dissects packets on 5G interfaces directly inside the browser alongside Digital Experience Monitoring (DEM) probes.
+          Captures and dissects packets on <code>uesimtun*</code> interfaces directly inside the browser alongside Digital Experience Monitoring (DEM) probes.
         </li>
       </ul>
     </div>
@@ -646,8 +643,8 @@
       </p>
       <ul class="modal__list">
         <li><strong>Emulated 5G Endpoints:</strong> Models Mobile Users (Smartphones/Laptops), 5G Branches/Retail POS, and IoT/OT Infrastructure (Robots, EV Chargers, CCTV) with dedicated eSIM profiles.</li>
-        <li><strong>Isolated Tunnel Interfaces:</strong> Each active <code>nr-ue</code> process spawns a dedicated Linux TUN interface (<code>uesimtun0</code>, <code>uesimtun1</code>…) bound to its assigned mobile IPv4.</li>
-        <li><strong>VM 1 ⇄ VM 2 Links:</strong> Connects to the Open5GS Core VM over <strong>N2 (NGAP/SCTP :38412)</strong> for control signaling and <strong>N3 (GTP-U :2152)</strong> for encapsulated user traffic.</li>
+        <li><strong>Isolated Tunnel Interfaces:</strong> Each active <code>nr-ue</code> process spawns a dedicated Linux TUN interface (<code>uesimtun0</code>, <code>uesimtun1</code>…) where Stigix injects real application and threat traffic.</li>
+        <li><strong>VM 1 ⇄ VM 2 Links:</strong> Multiplexes all 5G UEs through <code>nr-gnb</code> to the Open5GS Core VM over <strong>N2 (NGAP/SCTP :38412)</strong> for control signaling and <strong>N3 (GTP-U :2152)</strong> for encapsulated user traffic.</li>
       </ul>
     </div>
   </dialog>
