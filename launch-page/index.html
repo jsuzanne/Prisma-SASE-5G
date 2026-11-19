@@ -4,14 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Stigix 5G Lab — Launchpad</title>
-  <meta name="description" content="Launchpad for the Stigix 5G Lab: Open5GS Packet Core, UERANSIM RAN, Palo Alto Networks Prisma SASE 5G, and Stigix L4/L7 Traffic Validation.">
+  <meta name="description" content="Launchpad for the Stigix 5G Lab: Open5GS Packet Core, UERANSIM RAN, Palo Alto Networks Prisma SASE 5G (SPI), and Stigix L4/L7 Traffic Validation.">
   <link rel="icon" type="image/png" href="assets/stigix-favicon.png">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
   <!-- ══════════════════════════════════════════════════════════
-       MINIMAL NAVBAR (stigix.io style)
+       MINIMAL NAVBAR (stigix.io style + Prisma SASE 5G link)
   ══════════════════════════════════════════════════════════ -->
   <nav class="nav">
     <div class="nav__inner">
@@ -22,13 +22,16 @@
       </a>
       <div class="nav__links">
         <a href="https://stigix.io" target="_blank" rel="noopener noreferrer" class="nav__pill">stigix.io ↗</a>
-        <a href="https://github.com/jsuzanne/Prisma-SASE-5G" target="_blank" rel="noopener noreferrer" class="nav__pill">GitHub ↗</a>
+        <a href="https://www.paloaltonetworks.com/sase/5g-security" target="_blank" rel="noopener noreferrer" class="nav__pill nav__pill--panw">
+          <span class="panw-dot" aria-hidden="true"></span>
+          <span>Prisma SASE 5G ↗</span>
+        </a>
       </div>
     </div>
   </nav>
 
   <!-- ══════════════════════════════════════════════════════════
-       MAIN LAUNCHPAD
+       MAIN LAUNCHPAD CONTAINER
   ══════════════════════════════════════════════════════════ -->
   <main class="container">
 
@@ -36,11 +39,11 @@
     <header class="hero">
       <div class="hero__badge">
         <span class="hero__dot" aria-hidden="true"></span>
-        <span>Open5GS Core · UERANSIM RAN · Prisma SASE 5G · Stigix V3</span>
+        <span>Open5GS Core · UERANSIM RAN · Prisma SASE 5G (SPI) · Stigix V3</span>
       </div>
       <h1 class="hero__title">Stigix 5G Lab <em>Launchpad</em></h1>
       <p class="hero__sub">
-        Select an environment below to orchestrate 5G Core &amp; Radio VMs or generate L4/L7 traffic and threat scenarios across 5G UE tunnels.
+        Orchestrate emulated 5G devices across the RAN &amp; Core VMs, enforce SIM-based Zero-Trust policies over SPI, and validate L4/L7 traffic.
       </p>
     </header>
 
@@ -74,7 +77,7 @@
 
           <div class="launch-card__body">
             <p class="launch-card__desc">
-              Drives the <strong>5G Core VM (Open5GS)</strong> and <strong>5G RAN VM (UERANSIM)</strong>. Provisions multi-vertical SIM fleets in one click, spawns <code>nr-ue</code> radio tunnels, and binds live session IPs to <strong>Prisma SASE 5G</strong>.
+              Drives <strong>VM 1 (UERANSIM RAN)</strong> and <strong>VM 2 (Open5GS Core)</strong>. Provisions multi-vertical SIM fleets in one click, spawns <code>nr-ue</code> radio tunnels, and correlates live session IPs with <strong>Prisma SASE 5G</strong>.
             </p>
             <div class="chip-row">
               <span class="chip">Open5GS + MongoDB</span>
@@ -85,7 +88,7 @@
 
           <footer>
             <span class="btn-launch" aria-hidden="true">Launch Orchestrator ↗</span>
-            <button type="button" class="btn-info" data-dialog-target="modal-orchestrator">How it works</button>
+            <button type="button" class="btn-info" data-dialog-target="modal-orchestrator">Details</button>
           </footer>
         </article>
 
@@ -118,7 +121,7 @@
 
           <footer>
             <span class="btn-launch" aria-hidden="true">Launch 5G Lab ↗</span>
-            <button type="button" class="btn-info" data-dialog-target="modal-stigixlab">How it works</button>
+            <button type="button" class="btn-info" data-dialog-target="modal-stigixlab">Details</button>
           </footer>
         </article>
 
@@ -129,72 +132,313 @@
     <div class="glow-line" role="separator" aria-hidden="true"></div>
 
     <!-- ──────────────────────────────────────────────────────
-         2. ARCHITECTURE & COMPONENTS (Minimal Square Tiles)
+         2. INTERACTIVE FUNCTIONAL ARCHITECTURE DIAGRAM
+         (Emulated 5G UEs ➔ VM 1 RAN ⇄ VM 2 Core ➔ SPI ➔ Prisma SASE 5G)
     ────────────────────────────────────────────────────── -->
-    <section aria-labelledby="sec-components">
+    <section aria-labelledby="sec-architecture">
       <div class="sec-head">
-        <h2 class="sec-title" id="sec-components">Architecture &amp; Lab Components</h2>
-        <span class="sec-hint">Click any tile for technical details</span>
+        <h2 class="sec-title" id="sec-architecture">Functional Architecture &amp; VM Interactions</h2>
+        <span class="sec-hint">Click any block to inspect protocols &amp; roles</span>
       </div>
 
-      <div class="tiles-grid">
+      <div class="arch-board">
 
-        <!-- Tile 1: 5G RAN VM -->
-        <button type="button" class="tile" data-dialog-target="modal-ran">
-          <svg class="tile__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/>
-            <path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/>
-            <circle cx="12" cy="12" r="2"/>
-            <path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/>
-            <path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/>
-          </svg>
-          <span class="tile__title">5G RAN VM</span>
-          <span class="tile__sub">UERANSIM · nr-gnb &amp; uesimtun*</span>
-        </button>
+        <!-- TOP CONTROL PLANE BAR -->
+        <div class="cp-bar">
+          <span class="cp-bar__label">Automated Control Plane &amp; AAA API Signaling</span>
 
-        <!-- Tile 2: 5G Core VM -->
-        <button type="button" class="tile" data-dialog-target="modal-core">
-          <svg class="tile__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <rect x="2" y="2" width="20" height="8" rx="2" ry="2"/>
-            <rect x="2" y="14" width="20" height="8" rx="2" ry="2"/>
-            <line x1="6" y1="6" x2="6.01" y2="6"/>
-            <line x1="6" y1="18" x2="6.01" y2="18"/>
-          </svg>
-          <span class="tile__title">5G Core VM</span>
-          <span class="tile__sub">Open5GS · AMF / SMF / UPF</span>
-        </button>
+          <button type="button" class="cp-box" data-dialog-target="modal-orchestrator">
+            <div>
+              <div class="cp-box__title">5G Orchestrator Web UI</div>
+              <div class="cp-box__sub">5gorchestrator.stigix.io (Control Plane)</div>
+            </div>
+            <span class="cp-box__badge">ROLE=core :8080</span>
+          </button>
 
-        <!-- Tile 3: Prisma SASE 5G -->
-        <button type="button" class="tile" data-dialog-target="modal-sase">
-          <svg class="tile__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-            <path d="m9 12 2 2 4-4"/>
-          </svg>
-          <span class="tile__title">Prisma SASE 5G</span>
-          <span class="tile__sub">Zero-Trust · IMSI / IMEI Policy</span>
-        </button>
+          <div class="cp-connector" aria-hidden="true">
+            <span>REST / mTLS</span>
+            <div class="cp-connector__line"></div>
+            <span>4-Way Sync</span>
+          </div>
 
-        <!-- Tile 4: Stigix Engine -->
-        <button type="button" class="tile" data-dialog-target="modal-stigixlab">
-          <svg class="tile__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <polyline points="4 17 10 11 4 5"/>
-            <line x1="12" y1="19" x2="20" y2="19"/>
-          </svg>
-          <span class="tile__title">Stigix Engine</span>
-          <span class="tile__sub">L4/L7 Traffic &amp; Wireshark</span>
-        </button>
+          <button type="button" class="cp-box" data-dialog-target="modal-flow">
+            <div>
+              <div class="cp-box__title">Ground-Truth Reconciler</div>
+              <div class="cp-box__sub">Provision Mongo SIM · Spawn nr-ue · Poll SMF/AMF</div>
+            </div>
+            <span class="cp-box__badge">Live State</span>
+          </button>
 
-        <!-- Tile 5: End-to-End Flow -->
-        <button type="button" class="tile" data-dialog-target="modal-flow">
-          <svg class="tile__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <rect x="2" y="3" width="6" height="6" rx="1"/>
-            <rect x="16" y="3" width="6" height="6" rx="1"/>
-            <rect x="9" y="15" width="6" height="6" rx="1"/>
-            <path d="M8 6h8M5 9v4a2 2 0 0 0 2 2h2m10-6v4a2 2 0 0 1-2 2h-2"/>
-          </svg>
-          <span class="tile__title">End-to-End Flow</span>
-          <span class="tile__sub">N2 / N3 / N6 Call Flow</span>
-        </button>
+          <div class="cp-connector" aria-hidden="true">
+            <span>AAA / OAuth2 API</span>
+            <div class="cp-connector__line"></div>
+            <span>/uesession/register</span>
+          </div>
+
+          <button type="button" class="cp-box cp-box--sase" data-dialog-target="modal-sase">
+            <div>
+              <div class="cp-box__title">Prisma SASE 5G API (SCM)</div>
+              <div class="cp-box__sub">IMSI / IMEI / APN Identity + Dynamic IP Binding</div>
+            </div>
+            <span class="cp-box__badge">Strata Cloud</span>
+          </button>
+        </div>
+
+        <!-- MAIN 3-ZONE DATA & SIGNALING TOPOLOGY -->
+        <div class="topo-grid">
+
+          <!-- ZONE 1: EMULATED 5G DEVICES & VM 1 (5G RAN + STIGIX) -->
+          <div class="topo-zone">
+            <div class="zone-header">
+              <span class="zone-title">1. Emulated 5G UEs &amp; RAN VM</span>
+              <span class="zone-tag">VM 1 · UERANSIM</span>
+            </div>
+
+            <!-- 3 Emulated 5G Device Groups -->
+            <div class="ue-column">
+              <button type="button" class="ue-row" data-dialog-target="modal-ran">
+                <div class="ue-circle">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
+                    <line x1="12" y1="18" x2="12.01" y2="18"/>
+                  </svg>
+                </div>
+                <div class="ue-info">
+                  <div class="ue-info__name">
+                    <span>Mobile Users</span>
+                    <span class="sim-chip">5G eSIM · SST 1</span>
+                  </div>
+                  <div class="ue-info__meta">Smartphones &amp; Laptops · 5QI 9</div>
+                </div>
+              </button>
+
+              <button type="button" class="ue-row" data-dialog-target="modal-ran">
+                <div class="ue-circle ue-circle--teal">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
+                    <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+                  </svg>
+                </div>
+                <div class="ue-info">
+                  <div class="ue-info__name">
+                    <span>5G Branches &amp; POS</span>
+                    <span class="sim-chip">5G SIM · SST 1</span>
+                  </div>
+                  <div class="ue-info__meta">Retail POS &amp; Branch Gateways</div>
+                </div>
+              </button>
+
+              <button type="button" class="ue-row" data-dialog-target="modal-ran">
+                <div class="ue-circle ue-circle--orange">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4"/>
+                    <circle cx="12" cy="12" r="4"/>
+                  </svg>
+                </div>
+                <div class="ue-info">
+                  <div class="ue-info__name">
+                    <span>IoT / OT Infrastructure</span>
+                    <span class="sim-chip">5G SIM · SST 2/3</span>
+                  </div>
+                  <div class="ue-info__meta">Industry 4.0 Robots · EV · Smart CCTV</div>
+                </div>
+              </button>
+            </div>
+
+            <!-- VM 1 Details Box -->
+            <button type="button" class="vm-card" data-dialog-target="modal-ran">
+              <div class="vm-card__head">
+                <span class="vm-card__title">VM 1 · 5G RAN &amp; Traffic Engine</span>
+                <span class="vm-card__ip">10.10.10.2 (:8081)</span>
+              </div>
+              <div class="vm-subgrid">
+                <div class="vm-module">
+                  <div class="vm-module__name">nr-ue + nr-gnb</div>
+                  <div class="vm-module__sub">Per-SIM uesimtun0..N</div>
+                </div>
+                <div class="vm-module">
+                  <div class="vm-module__name">Stigix 5G Lab</div>
+                  <div class="vm-module__sub">SaaS · RTP · Threats</div>
+                </div>
+              </div>
+            </button>
+          </div>
+
+          <!-- ZONE 2: PRIVATE 5G CORE NETWORK (VM 2) & SPI INTERCONNECT -->
+          <div class="topo-zone">
+            <div class="zone-header">
+              <span class="zone-title">2. Private 5G Network &amp; SPI</span>
+              <span class="zone-tag">VM 2 · Open5GS</span>
+            </div>
+
+            <!-- Inter-VM Interactions: N2 Signaling + N3 GTP-U -->
+            <div class="interaction-strip">
+              <div class="proto-pill">
+                <div class="proto-pill__top">
+                  <span>N2 · 5G Signaling</span>
+                  <span>➔</span>
+                </div>
+                <div class="proto-pill__sub">NGAP / SCTP :38412 (VM1 ⇄ VM2)</div>
+              </div>
+              <div class="proto-pill proto-pill--gtpu">
+                <div class="proto-pill__top">
+                  <span>N3 · User Data Plane</span>
+                  <span>➔</span>
+                </div>
+                <div class="proto-pill__sub">GTP-U Tunnel :2152 (VM1 ⇄ VM2)</div>
+              </div>
+            </div>
+
+            <!-- VM 2: Open5GS Core Box -->
+            <button type="button" class="vm-card" data-dialog-target="modal-core">
+              <div class="vm-card__head">
+                <span class="vm-card__title">VM 2 · Open5GS 5G Core</span>
+                <span class="vm-card__ip">10.10.10.1 (:8080)</span>
+              </div>
+              <div class="vm-subgrid">
+                <div class="vm-module">
+                  <div class="vm-module__name">5GC-CP &amp; MongoDB</div>
+                  <div class="vm-module__sub">AMF · SMF · UDR · AUSF</div>
+                </div>
+                <div class="vm-module">
+                  <div class="vm-module__name">UPF &amp; MEC</div>
+                  <div class="vm-module__sub">PDU Pool 10.45.0.0/16</div>
+                </div>
+              </div>
+            </button>
+
+            <!-- Service-Specific Network Slices (like Image 3) -->
+            <div class="slices-box">
+              <span class="slices-box__label">Network Slices</span>
+              <div class="slices-pills">
+                <span class="slice-tag">Data | Video | Voice</span>
+                <span class="slice-tag">URLLC OT</span>
+                <span class="slice-tag">Mobile Broadband</span>
+              </div>
+            </div>
+
+            <!-- Glowing SPI Pipe (Service Provider Interconnect to Prisma SASE 5G) -->
+            <button type="button" class="spi-pipe" data-dialog-target="modal-sase">
+              <div class="spi-pipe__left">
+                <span class="spi-pipe__badge">SPI</span>
+                <div>
+                  <div class="spi-pipe__title">Service Provider Interconnect</div>
+                  <div class="spi-pipe__sub">N6 IPsec Tunnel · User Data Plane Traffic</div>
+                </div>
+              </div>
+              <span style="color:var(--cyan);font-weight:700;">➔</span>
+            </button>
+          </div>
+
+          <!-- ZONE 3: PRISMA SASE 5G (SPN CLUSTERS) & CLOUD TARGETS -->
+          <div class="topo-zone topo-zone--sase">
+            <div class="zone-header">
+              <span class="zone-title" style="color:var(--cyan);">3. Prisma SASE 5G &amp; Targets</span>
+              <span class="zone-tag">Zero-Trust Cloud</span>
+            </div>
+
+            <div class="sase-stack">
+              <button type="button" class="sase-core-box" data-dialog-target="modal-sase">
+                <div class="sase-core-box__top">
+                  <span class="sase-core-box__title">
+                    <span class="panw-dot" aria-hidden="true"></span>
+                    <span>Prisma Access · 5G Security</span>
+                  </span>
+                  <span class="spn-badge">SPN Clusters</span>
+                </div>
+
+                <!-- Security Services Grid (exact match to Image 3 & 4) -->
+                <div class="sec-services-grid">
+                  <span class="sec-pill">AIOps</span>
+                  <span class="sec-pill">SaaS</span>
+                  <span class="sec-pill">DLP</span>
+                  <span class="sec-pill">IoT</span>
+                  <span class="sec-pill">DNS</span>
+                  <span class="sec-pill">ADV TP</span>
+                  <span class="sec-pill">ADV URL</span>
+                  <span class="sec-pill">ADV WF</span>
+                </div>
+
+                <!-- 5G Identity Enforcement -->
+                <div class="id-enforcement">
+                  <span>Subscriber ID (IMSI / SUPI)</span>
+                  <span>Equipment ID (IMEI / PEI)</span>
+                  <span>Slice ID (SST / SD)</span>
+                  <span>APN &amp; Security Group</span>
+                </div>
+              </button>
+
+              <!-- 3 Egress Targets (Internet, SaaS & AI Apps, Enterprise DC) -->
+              <div class="targets-row">
+                <div class="target-node">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="1.8" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="2" y1="12" x2="22" y2="12"/>
+                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                  </svg>
+                  <span class="target-node__title">Internet</span>
+                  <span class="target-node__sub">Secure Egress</span>
+                </div>
+
+                <div class="target-node">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="1.8" aria-hidden="true">
+                    <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
+                  </svg>
+                  <span class="target-node__title">SaaS &amp; AI Apps</span>
+                  <span class="target-node__sub">M365 · Cloud · AI</span>
+                </div>
+
+                <div class="target-node">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="1.8" aria-hidden="true">
+                    <ellipse cx="12" cy="5" rx="9" ry="3"/>
+                    <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+                    <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+                  </svg>
+                  <span class="target-node__title">Data Center</span>
+                  <span class="target-node__sub">Private Apps</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- BOTTOM LEGEND & OUTCOMES BAR (Stigix Diagram Style) -->
+        <div class="board-footer">
+          <div class="legend-box">
+            <span class="legend-item">
+              <span class="legend-line legend-line--data" aria-hidden="true"></span>
+              <span>N3 GTP-U &amp; N6 SPI Data Plane</span>
+            </span>
+            <span class="legend-item">
+              <span class="legend-line legend-line--sig" aria-hidden="true"></span>
+              <span>N2 NGAP/SCTP Radio Signaling</span>
+            </span>
+            <span class="legend-item">
+              <span class="legend-line legend-line--api" aria-hidden="true"></span>
+              <span>AAA / SCM 5G REST Control Plane</span>
+            </span>
+          </div>
+
+          <div class="outcomes-box">
+            <div class="outcome-metric">
+              <div class="outcome-metric__label">SIM Identity</div>
+              <div class="outcome-metric__val">IMSI + IMEI</div>
+            </div>
+            <div class="outcome-metric">
+              <div class="outcome-metric__label">Interconnect</div>
+              <div class="outcome-metric__val">SPI (N6 IPsec)</div>
+            </div>
+            <div class="outcome-metric">
+              <div class="outcome-metric__label">Lab Topology</div>
+              <div class="outcome-metric__val">2 VMs (RAN+Core)</div>
+            </div>
+            <div class="outcome-metric">
+              <div class="outcome-metric__label">Validation</div>
+              <div class="outcome-metric__val">L4/L7 + Threats</div>
+            </div>
+          </div>
+        </div>
 
       </div>
     </section>
@@ -203,7 +447,7 @@
 
   <!-- Minimal Footer -->
   <footer class="footer">
-    <span>Stigix 5G Lab · Open5GS + UERANSIM + Prisma SASE 5G</span>
+    <span>Stigix 5G Lab · Open5GS + UERANSIM + Prisma SASE 5G (SPI)</span>
     <div class="footer__links">
       <a href="https://5gorchestrator.stigix.io/" target="_blank" rel="noopener noreferrer">5gorchestrator.stigix.io ↗</a>
       <a href="https://stigix5glab.stigix.io/" target="_blank" rel="noopener noreferrer">stigix5glab.stigix.io ↗</a>
@@ -226,7 +470,7 @@
         <form method="dialog"><button type="submit" class="modal__close" autofocus>ESC</button></form>
       </div>
       <p class="modal__lead">
-        Unified control plane connecting the Open5GS Packet Core VM, the UERANSIM Radio VM, and Palo Alto Networks Strata Cloud Manager (SCM).
+        Unified control plane connecting VM 1 (UERANSIM Radio), VM 2 (Open5GS Packet Core), and Palo Alto Networks Strata Cloud Manager (SCM).
       </p>
       <ul class="modal__list">
         <li>
@@ -275,95 +519,87 @@
     </div>
   </dialog>
 
-  <!-- Modal: 5G RAN VM -->
+  <!-- Modal: VM 1 (5G RAN & Emulated UEs) -->
   <dialog id="modal-ran" class="modal" closedby="any" aria-labelledby="title-ran">
     <div class="modal__inner">
       <div class="modal__head">
         <div>
-          <div class="modal__tag">COMPONENT 01 · RADIO ACCESS NETWORK</div>
-          <h2 class="modal__title" id="title-ran">5G RAN VM (UERANSIM + RAN Agent)</h2>
+          <div class="modal__tag">VM 1 · 10.10.10.2 · RADIO &amp; TRAFFIC</div>
+          <h2 class="modal__title" id="title-ran">Emulated 5G UEs &amp; UERANSIM RAN VM</h2>
         </div>
         <form method="dialog"><button type="submit" class="modal__close" autofocus>ESC</button></form>
       </div>
       <p class="modal__lead">
-        Emulates the 5G gNodeB base station (<code>nr-gnb</code>) and 5G User Equipment modems (<code>nr-ue</code>), controlled remotely by the Orchestrator via a lightweight RAN Agent API (<code>:8081</code>).
+        Emulates the 5G gNodeB base station (<code>nr-gnb</code>) and 5G User Equipment modems (<code>nr-ue</code>), controlled remotely by the Orchestrator via the RAN Agent API (<code>:8081</code>).
       </p>
       <ul class="modal__list">
-        <li><strong>Dynamic UE Templating:</strong> Generates per-SIM <code>ue-&lt;imsi&gt;.yaml</code> configuration files with matching keys, APN/DNN, and S-NSSAI slice parameters.</li>
-        <li><strong>Dedicated Tunnel Interfaces:</strong> Each active <code>nr-ue</code> process spawns an isolated Linux TUN interface (<code>uesimtun0</code>, <code>uesimtun1</code>…) with its own mobile IPv4 address.</li>
-        <li><strong>N2 &amp; N3 Radio Links:</strong> Connects to the 5G Core VM over N2 (NGAP/SCTP port 38412) for signaling and N3 (GTP-U UDP port 2152) for user plane packets.</li>
+        <li><strong>Emulated 5G Endpoints:</strong> Models Mobile Users (Smartphones/Laptops), 5G Branches/Retail POS, and IoT/OT Infrastructure (Robots, EV Chargers, CCTV) with dedicated eSIM profiles.</li>
+        <li><strong>Isolated Tunnel Interfaces:</strong> Each active <code>nr-ue</code> process spawns a dedicated Linux TUN interface (<code>uesimtun0</code>, <code>uesimtun1</code>…) bound to its assigned mobile IPv4.</li>
+        <li><strong>VM 1 ⇄ VM 2 Links:</strong> Connects to the Open5GS Core VM over <strong>N2 (NGAP/SCTP :38412)</strong> for control signaling and <strong>N3 (GTP-U :2152)</strong> for encapsulated user traffic.</li>
       </ul>
     </div>
   </dialog>
 
-  <!-- Modal: 5G Core VM -->
+  <!-- Modal: VM 2 (5G Core Open5GS) -->
   <dialog id="modal-core" class="modal" closedby="any" aria-labelledby="title-core">
     <div class="modal__inner">
       <div class="modal__head">
         <div>
-          <div class="modal__tag">COMPONENT 02 · 5G STANDALONE PACKET CORE</div>
-          <h2 class="modal__title" id="title-core">5G Core VM (Open5GS + MongoDB)</h2>
+          <div class="modal__tag">VM 2 · 10.10.10.1 · PRIVATE 5G CORE</div>
+          <h2 class="modal__title" id="title-core">Open5GS 5G Core VM (5GC-CP &amp; UPF)</h2>
         </div>
         <form method="dialog"><button type="submit" class="modal__close" autofocus>ESC</button></form>
       </div>
       <p class="modal__lead">
-        3GPP Release 17 5G Standalone Packet Core handling subscriber authentication, PDU session management, and GTP-U packet forwarding.
+        3GPP Release 17 5G Standalone Packet Core handling subscriber authentication, network slicing, PDU session allocation, and N6 forwarding to Prisma SASE 5G.
       </p>
       <ul class="modal__list">
-        <li><strong>MongoDB Subscriber Store (<code>:27017</code>):</strong> Stores SIM credentials (IMSI, K, OPc), 5QI QoS profiles, AMBR bandwidth limits, and S-NSSAI network slices.</li>
-        <li><strong>AMF &amp; SMF Control Plane (<code>:9090</code>):</strong> Authenticates attaching UEs, assigns mobile IPv4 addresses (<code>10.45.0.x</code>), and exposes real-time JSON session telemetry.</li>
-        <li><strong>UPF User Plane:</strong> Decapsulates GTP-U traffic from the RAN VM and forwards mobile flows over N6 toward Prisma SASE 5G.</li>
+        <li><strong>5GC-CP &amp; MongoDB (<code>:27017</code>):</strong> Stores SIM credentials (IMSI, K, OPc), 5QI QoS profiles, AMBR limits, and S-NSSAI slices (SST/SD).</li>
+        <li><strong>AMF &amp; SMF Telemetry (<code>:9090</code>):</strong> Authenticates UEs over N2, allocates PDU session IPv4s (<code>10.45.0.x</code>), and exposes live session state to the Orchestrator.</li>
+        <li><strong>UPF &amp; SPI Forwarding:</strong> Decapsulates N3 GTP-U packets from VM 1 and routes user plane traffic over the <strong>SPI (Service Provider Interconnect)</strong> tunnel into Prisma SASE 5G.</li>
       </ul>
     </div>
   </dialog>
 
-  <!-- Modal: Prisma SASE 5G -->
+  <!-- Modal: Prisma SASE 5G & SPI -->
   <dialog id="modal-sase" class="modal" closedby="any" aria-labelledby="title-sase">
     <div class="modal__inner">
       <div class="modal__head">
         <div>
-          <div class="modal__tag">COMPONENT 03 · ZERO-TRUST CLOUD SECURITY</div>
-          <h2 class="modal__title" id="title-sase">Palo Alto Networks Prisma SASE 5G</h2>
+          <div class="modal__tag">SPI INTERCONNECT &amp; ZERO-TRUST CLOUD</div>
+          <h2 class="modal__title" id="title-sase">Prisma SASE 5G &amp; Service Provider Interconnect (SPI)</h2>
         </div>
         <form method="dialog"><button type="submit" class="modal__close" autofocus>ESC</button></form>
       </div>
       <p class="modal__lead">
-        Managed through Strata Cloud Manager (SCM), enforcing agentless Zero-Trust security policies on 5G devices based on SIM and hardware identity.
+        Connects the Private 5G UPF to Prisma Access SPN Clusters over a high-bandwidth <strong>Service Provider Interconnect (SPI)</strong> while correlating AAA/REST identity metadata.
       </p>
       <ul class="modal__list">
-        <li><strong>5G Identity Mapping (<code>/tenantUEInfo</code>):</strong> Associates every SIM's <code>IMSI</code>, hardware <code>IMEI</code>, and <code>APN</code> with a dedicated Subscriber Security Group.</li>
-        <li><strong>Live Session Correlation (<code>/uesession/register</code>):</strong> Maps dynamic PDU session IPs to 5G identities in real time so firewall rules track devices across IP changes.</li>
-        <li><strong>Instant Policy Shifts:</strong> Moving a SIM from a <em>Permissive</em> group to a <em>Restrictive</em> group immediately updates L7 security enforcement without dropping the 5G session.</li>
+        <li><strong>SPI (N6 IPsec Interconnect):</strong> Carries user data plane traffic directly from the 5G Core UPF into Prisma Access Service Processing Nodes (SPN Clusters).</li>
+        <li><strong>SIM-Based Identity Enforcement:</strong> Enforces granular security rules based on <code>Subscriber ID (IMSI/SUPI)</code>, <code>Equipment ID (IMEI/PEI)</code>, <code>Slice ID (SST/SD)</code>, and <code>APN</code>.</li>
+        <li><strong>Advanced Security Stack:</strong> Inspects all 5G flows with DLP, IoT Security, DNS Security, Advanced Threat Prevention (ADV TP), Advanced URL Filtering (ADV URL), and WildFire (ADV WF).</li>
       </ul>
     </div>
   </dialog>
 
-  <!-- Modal: End-to-End Call Flow -->
+  <!-- Modal: Ground-Truth Reconciler Flow -->
   <dialog id="modal-flow" class="modal" closedby="any" aria-labelledby="title-flow">
     <div class="modal__inner">
       <div class="modal__head">
         <div>
-          <div class="modal__tag">ARCHITECTURE BLUEPRINT</div>
-          <h2 class="modal__title" id="title-flow">End-to-End 5G SASE Pipeline</h2>
+          <div class="modal__tag">CONTROL PLANE AUTOMATION</div>
+          <h2 class="modal__title" id="title-flow">4-Way Ground-Truth State Reconciler</h2>
         </div>
         <form method="dialog"><button type="submit" class="modal__close" autofocus>ESC</button></form>
       </div>
-
-      <div class="modal__diagram">
-        <div class="modal__node">5G RAN VM<span>nr-ue / uesimtun*</span></div>
-        <span class="modal__arrow">➔</span>
-        <div class="modal__node">5G Core VM<span>AMF / SMF / UPF</span></div>
-        <span class="modal__arrow">➔</span>
-        <div class="modal__node">Prisma SASE 5G<span>IMSI / IMEI Policy</span></div>
-        <span class="modal__arrow">➔</span>
-        <div class="modal__node">Stigix Lab<span>L4/L7 &amp; Threats</span></div>
-      </div>
-
+      <p class="modal__lead">
+        The Orchestrator continuously synchronizes all 4 layers of the lab so SIM state and IP bindings are always verified against ground truth:
+      </p>
       <ul class="modal__list">
-        <li><strong>Step 1 · Provision:</strong> Orchestrator writes the SIM subscriber to Open5GS MongoDB and registers the 5G identity in Prisma SASE 5G.</li>
-        <li><strong>Step 2 · Attach:</strong> RAN Agent starts <code>nr-ue</code>; Open5GS establishes the PDU session and allocates an IPv4 on <code>uesimtunX</code>.</li>
-        <li><strong>Step 3 · Correlate:</strong> Orchestrator polls SMF telemetry and binds the live IPv4 to the SIM identity in Strata Cloud Manager.</li>
-        <li><strong>Step 4 · Validate:</strong> Stigix 5G Lab generates application &amp; threat traffic over the 5G user plane to validate Zero-Trust inspection.</li>
+        <li><strong>1 · Open5GS MongoDB:</strong> Verifies subscriber keys (K/OPc), APN, and S-NSSAI slice configuration on VM 2.</li>
+        <li><strong>2 · UERANSIM RAN Agent:</strong> Verifies active <code>nr-ue</code> processes and live <code>uesimtunX</code> interfaces on VM 1.</li>
+        <li><strong>3 · Open5GS SMF/AMF:</strong> Polls live PDU sessions and assigned mobile IPv4 addresses on VM 2.</li>
+        <li><strong>4 · Prisma SASE 5G (SCM):</strong> Pushes 5G identities (<code>/tenantUEInfo</code>) and registers live session IPs (<code>/uesession/register</code>).</li>
       </ul>
     </div>
   </dialog>
