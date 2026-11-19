@@ -14,8 +14,8 @@ python3 -m http.server 8088 --directory launch-page
 Then open `http://localhost:8088` in your browser.
 
 ## Cloudflare Pages Deployment
-- **Option 1 (Git Integration)**: Connect the repository to Cloudflare Pages and set the **Build output directory** to `launch-page` (no build command needed).
-- **Option 2 (Wrangler CLI)**:
+- **Live URL**: `https://5glab.pages.dev` (Custom Domain: `https://5glab.stigix.io`)
+- **Deploy via Wrangler CLI**:
   ```bash
-  npx wrangler pages deploy launch-page --project-name stigix-5g-launchpad
+  npx -y wrangler pages deploy launch-page --project-name=5glab --branch=main
   ```
