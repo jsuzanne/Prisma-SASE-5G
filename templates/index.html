@@ -5822,6 +5822,7 @@
                 const ip = sim.ipv4_addr || '';
 
                 let powerBtn;
+                let deleteBtn = '';
                 if (isAct) {
                     powerBtn = `
                         <button onclick="openTrafficModal('${imsi}', '${ip}')" class="px-2.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-xs transition cursor-pointer inline-flex items-center gap-1" title="Generate Live 5G Traffic & Test Prisma SASE Security">
@@ -5843,6 +5844,11 @@
                             <i data-lucide="zap" class="w-3.5 h-3.5 inline"></i> Power On
                         </button>
                     `;
+                    deleteBtn = `
+                        <button onclick="handleDeleteSIM('${identityId}', '${imsi}')" class="px-2 py-1 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs transition cursor-pointer" title="Delete SIM (Deprovision from 5G Core & SCM)">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5 inline"></i>
+                        </button>
+                    `;
                 }
 
                 return `
@@ -5853,9 +5859,7 @@
                         <i data-lucide="edit-3" class="w-3.5 h-3.5 inline"></i> Edit
                     </button>
                     ${powerBtn}
-                    <button onclick="handleDeleteSIM('${identityId}', '${imsi}')" class="px-2 py-1 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs transition" title="Delete SIM">
-                        <i data-lucide="trash-2" class="w-3.5 h-3.5 inline"></i>
-                    </button>
+                    ${deleteBtn}
                 `;
             };
 
@@ -6867,10 +6871,15 @@
             }
         }
 
-        // Delete SIM
+        // Delete SIM (Hardened: requires SIM to be Powered Off / Offline first)
         async function handleDeleteSIM(identityId, imsi) {
             if (!identityId) {
                 showToast("Action Denied", "Cannot delete item without an identity ID", true);
+                return;
+            }
+            const simObj = (allSIMs || []).find(s => String(s.imsi) === String(imsi) || s.identity_id === identityId);
+            if (simObj && (simObj.status === 'Active' || simObj.sync_status === 'active' || simObj.sync_status === 'starting')) {
+                showToast("Power Off Required First", `SIM ${imsi} has an active 5G session (${simObj.ipv4_addr || 'attached'}). Please Power Off the device before deleting it.`, true);
                 return;
             }
             if (!confirm(`Are you sure you want to delete SIM ${imsi} (ID: ${identityId})?`)) {

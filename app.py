@@ -2222,7 +2222,9 @@ def set_ue_groups(identity_id: str, payload: UpdateUEGroupsModel):
 
 @app.delete("/api/ues/{identity_id}")
 def delete_ue(identity_id: str, imsi: Optional[str] = None):
-    """Safely delete a SIM card mapping by identity ID and clean up local metadata."""
+    """Safely delete a SIM card mapping by identity ID and clean up local metadata.
+    Hardened: refuses deletion if the SIM still has an active 5G session (must be Powered Off first).
+    """
     try:
         client = get_current_client()
         
@@ -2233,6 +2235,16 @@ def delete_ue(identity_id: str, imsi: Optional[str] = None):
                 imsi = ue_obj.get("imsi") if isinstance(ue_obj, dict) else getattr(ue_obj, "imsi", None)
             except Exception:
                 pass
+
+        if imsi:
+            clean_imsi = re.sub(r"\D", "", str(imsi))
+            sim = _sim_state(clean_imsi)
+            if sim.get("status") in ("active", "starting"):
+                live_ip = sim.get("live_ip") or "attached"
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Cannot delete active SIM {clean_imsi} (session IP: {live_ip}). Please Power Off the device first to cleanly release its 5G PDU session and SCM IP binding.",
+                )
 
         resp = client.delete_tenant_ue(identity_id)
         if imsi:
@@ -2252,6 +2264,8 @@ def delete_ue(identity_id: str, imsi: Optional[str] = None):
             "data": resp,
             "message": f"SIM {identity_id} deleted successfully from Core 5G & SASE",
         }
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
