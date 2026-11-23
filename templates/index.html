@@ -159,6 +159,15 @@
             background: rgba(255, 255, 255, 0.15);
             border-radius: 3px;
         }
+        dialog:modal {
+            overscroll-behavior: contain;
+        }
+        dialog::backdrop {
+            overflow: hidden;
+            overscroll-behavior: contain;
+            background-color: rgba(6, 9, 17, 0.78);
+            backdrop-filter: blur(6px);
+        }
 
         /* ==========================================================================
            LIGHT MODE ENTERPRISE THEME OVERRIDES
@@ -4341,6 +4350,32 @@
         </div>
     </div>
 
+    <!-- Native Glassmorphic Confirmation Dialog (Replaces browser confirm() popups) -->
+    <dialog id="modal-confirm-dialog" closedby="any" aria-labelledby="confirm-dialog-title" class="m-auto w-[min(440px,92vw)] rounded-2xl p-0 bg-transparent border-0 shadow-2xl">
+        <div id="confirm-dialog-card" class="glass-panel rounded-2xl p-6 space-y-4 border border-rose-500/35 text-white shadow-2xl">
+            <div class="flex items-start gap-3.5">
+                <div id="confirm-dialog-icon-wrap" class="w-10 h-10 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0">
+                    <i id="confirm-dialog-icon" data-lucide="trash-2" class="w-5 h-5"></i>
+                </div>
+                <div class="space-y-1 flex-1 min-w-0">
+                    <h2 id="confirm-dialog-title" class="text-sm font-bold text-white font-sans">Confirm Action</h2>
+                    <p id="confirm-dialog-desc" class="text-xs text-gray-300 leading-relaxed font-sans break-words"></p>
+                    <div id="confirm-dialog-meta" class="hidden pt-1.5">
+                        <span id="confirm-dialog-badge" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-950/90 border border-white/10 text-[11px] font-mono text-cyan-300"></span>
+                    </div>
+                </div>
+            </div>
+            <form method="dialog" class="flex items-center justify-end gap-2.5 pt-3 border-t border-white/10">
+                <button type="submit" value="cancel" autofocus class="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 hover:text-white text-xs font-medium transition cursor-pointer">
+                    Cancel
+                </button>
+                <button type="submit" value="confirm" id="confirm-dialog-submit-btn" class="px-4 py-2 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-lg transition cursor-pointer">
+                    <span id="confirm-dialog-submit-label">Confirm</span>
+                </button>
+            </form>
+        </div>
+    </dialog>
+
     <!-- Toast Notification -->
     <div id="toast" class="fixed bottom-6 right-6 z-50 max-w-sm glass-panel rounded-2xl p-4 border border-cyan-500/30 text-xs text-white shadow-2xl hidden flex items-start gap-3 transition-all duration-300">
         <div id="toast-icon" class="text-cyan-400 mt-0.5"><i data-lucide="info" class="w-4 h-4"></i></div>
@@ -4357,6 +4392,77 @@
         let allSIMs = [];
         let allTenants = [];
         let allGroups = [];
+
+        // Native <dialog> Confirmation Helper (Replaces ugly browser confirm() alerts)
+        function showConfirmModal({
+            title = "Confirm Action",
+            message = "Are you sure you want to proceed?",
+            badge = "",
+            confirmLabel = "Confirm",
+            icon = "alert-triangle",
+            variant = "danger"
+        } = {}) {
+            const dlg = document.getElementById('modal-confirm-dialog');
+            if (!dlg || typeof dlg.showModal !== 'function') {
+                return Promise.resolve(window.confirm(message));
+            }
+            const card = document.getElementById('confirm-dialog-card');
+            const iconWrap = document.getElementById('confirm-dialog-icon-wrap');
+            const titleEl = document.getElementById('confirm-dialog-title');
+            const descEl = document.getElementById('confirm-dialog-desc');
+            const metaWrap = document.getElementById('confirm-dialog-meta');
+            const badgeEl = document.getElementById('confirm-dialog-badge');
+            const submitBtn = document.getElementById('confirm-dialog-submit-btn');
+            const submitLbl = document.getElementById('confirm-dialog-submit-label');
+
+            if (titleEl) titleEl.textContent = title;
+            if (descEl) descEl.textContent = message;
+            if (submitLbl) submitLbl.textContent = confirmLabel;
+
+            if (badge && metaWrap && badgeEl) {
+                metaWrap.classList.remove('hidden');
+                badgeEl.textContent = badge;
+            } else if (metaWrap) {
+                metaWrap.classList.add('hidden');
+            }
+
+            const themes = {
+                danger: {
+                    border: "glass-panel rounded-2xl p-6 space-y-4 border border-rose-500/35 text-white shadow-2xl",
+                    iconWrap: "w-10 h-10 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0",
+                    btn: "px-4 py-2 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-lg transition cursor-pointer"
+                },
+                warning: {
+                    border: "glass-panel rounded-2xl p-6 space-y-4 border border-amber-500/35 text-white shadow-2xl",
+                    iconWrap: "w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0",
+                    btn: "px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-lg transition cursor-pointer"
+                },
+                primary: {
+                    border: "glass-panel rounded-2xl p-6 space-y-4 border border-cyan-500/35 text-white shadow-2xl",
+                    iconWrap: "w-10 h-10 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shrink-0",
+                    btn: "px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-lg transition cursor-pointer"
+                }
+            };
+            const t = themes[variant] || themes.danger;
+            if (card) card.className = t.border;
+            if (iconWrap) {
+                iconWrap.className = t.iconWrap;
+                iconWrap.innerHTML = `<i data-lucide="${icon}" class="w-5 h-5"></i>`;
+            }
+            if (submitBtn) submitBtn.className = t.btn;
+            lucide.createIcons();
+
+            return new Promise((resolve) => {
+                const onClose = () => {
+                    const accepted = dlg.returnValue === 'confirm';
+                    dlg.returnValue = '';
+                    resolve(accepted);
+                };
+                dlg.addEventListener('close', onClose, { once: true });
+                dlg.returnValue = '';
+                dlg.showModal();
+            });
+        }
 
         // Tab Switcher
         function switchTab(tabId) {
@@ -5598,7 +5704,14 @@
 
         // Clear Local Metadata (Reset to Raw SCM)
         async function handleClearMetadata() {
-            if (!confirm("Do you want to reset all local business metadata (verticals, equipment types, demo memos) and return to 100% Raw Strata Cloud Manager view?")) {
+            const ok = await showConfirmModal({
+                title: "Reset Local Metadata",
+                message: "Reset all local business metadata (verticals, equipment types, demo memos) and return to 100% Raw Strata Cloud Manager view?",
+                confirmLabel: "Reset Metadata",
+                icon: "rotate-ccw",
+                variant: "warning"
+            });
+            if (!ok) {
                 return;
             }
             try {
@@ -6618,7 +6731,15 @@
                 showToast("Error", "Missing group ID", true);
                 return;
             }
-            if (!confirm(`Are you sure you want to delete the 5G subscriber group '${groupName}' (${groupId})?`)) {
+            const ok = await showConfirmModal({
+                title: "Delete 5G Subscriber Group",
+                message: `Permanently delete subscriber group '${groupName}' from Strata Cloud Manager?`,
+                badge: `ID: ${groupId}`,
+                confirmLabel: "Delete Group",
+                icon: "trash-2",
+                variant: "danger"
+            });
+            if (!ok) {
                 return;
             }
             try {
@@ -6918,7 +7039,16 @@
                 showToast("Power Off Required First", `SIM ${imsi} has an active 5G session (${simObj.ipv4_addr || 'attached'}). Please Power Off the device before deleting it.`, true);
                 return;
             }
-            if (!confirm(`Are you sure you want to delete SIM ${imsi} (ID: ${identityId})?`)) {
+            const deviceLabel = simObj?.device_type ? `${simObj.device_type} (${imsi})` : `IMSI ${imsi}`;
+            const ok = await showConfirmModal({
+                title: "Deprovision 5G SIM Card",
+                message: `Permanently remove ${deviceLabel} from Open5GS 5G Core (MongoDB) and Palo Alto Networks Strata Cloud Manager?`,
+                badge: `IMSI: ${imsi} • SCM ID: ${identityId.substring(0, 12)}…`,
+                confirmLabel: "Delete SIM",
+                icon: "trash-2",
+                variant: "danger"
+            });
+            if (!ok) {
                 return;
             }
             try {
@@ -7218,7 +7348,14 @@
         }
 
         async function handleFleetPowerOff(btn) {
-            if (!confirm("Are you sure you want to Power Off all 5G fleet devices and clean all network interfaces?")) {
+            const ok = await showConfirmModal({
+                title: "Power Off Entire 5G Fleet",
+                message: "Gracefully deregister all active 5G UEs, release all SCM session IP bindings, and clean up all uesimtun* interfaces?",
+                confirmLabel: "Power Off All",
+                icon: "power-off",
+                variant: "danger"
+            });
+            if (!ok) {
                 return;
             }
             if (btn) {
@@ -7650,7 +7787,15 @@
 
         async function triggerSystemUpgrade() {
             const upgradeAgent = document.getElementById('chk-upgrade-ran-agent')?.checked ?? true;
-            if (!confirm(`Launch 1-click ephemeral container upgrade for prisma-5g-core${upgradeAgent ? ' (and pre-pull on RAN VM)' : ''}?`)) {
+            const ok = await showConfirmModal({
+                title: "1-Click Ephemeral Self-Upgrade",
+                message: `Pull latest Docker Hub image and recreate prisma-5g-core via an ephemeral helper container${upgradeAgent ? ' (and pre-pull on RAN VM 152.236.5.67)' : ''}?`,
+                badge: "jsuzanne/prisma-5g-sase:5g-orchestrator",
+                confirmLabel: "Start Upgrade",
+                icon: "download-cloud",
+                variant: "primary"
+            });
+            if (!ok) {
                 return;
             }
             const btn = document.getElementById('btn-trigger-upgrade');
@@ -8444,7 +8589,14 @@
         }
 
         async function triggerSafeCleanup5G() {
-            if (!confirm("Are you sure you want to clean up all stale test UEs? (Baseline lab UEs are strictly protected)")) return;
+            const ok = await showConfirmModal({
+                title: "Clean Stale 5G Test UEs",
+                message: "Remove orphan/stale test UEs while strictly preserving protected baseline lab UEs?",
+                confirmLabel: "Clean Stale UEs",
+                icon: "sparkles",
+                variant: "warning"
+            });
+            if (!ok) return;
             try {
                 const resp = await fetch('/api/5g/cleanup', { method: 'POST' });
                 const res = await resp.json();
