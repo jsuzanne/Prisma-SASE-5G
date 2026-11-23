@@ -6,7 +6,7 @@
   <title>Stigix 5G Lab — Launchpad</title>
   <meta name="description" content="Launchpad for the Stigix 5G Lab: Open5GS Packet Core, UERANSIM RAN, Palo Alto Networks Prisma SASE 5G (SPI), and Stigix L4/L7 Traffic Validation.">
   <link rel="icon" type="image/png" href="assets/stigix-favicon.png">
-  <link rel="stylesheet" href="style.css?v=3">
+  <link rel="stylesheet" href="style.css?v=4">
 </head>
 <body>
 
@@ -560,20 +560,17 @@
     <section aria-labelledby="sec-quickstart">
       <div class="sec-head">
         <h2 class="sec-title" id="sec-quickstart">Quick Start · Add &amp; Test a 5G SIM in 3 Steps</h2>
-        <span class="sec-hint">~30 Seconds End-to-End · Click any preview to enlarge</span>
+        <span class="sec-hint">~30 Seconds End-to-End · Click Watch Demo for HD Walkthrough</span>
       </div>
 
       <div class="qs-grid">
         <!-- STEP 1 -->
-        <article class="launch-card launch-card--amber" data-dialog-target="modal-qs-step1">
-          <img
-            src="assets/step1-add-sim.gif"
-            alt="Animated walkthrough of registering a new 5G SIM card in 5G Orchestrator"
-            width="1920"
-            height="1080"
-            loading="lazy"
-            class="qs-media"
-          >
+        <article class="launch-card launch-card--amber">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
+            <line x1="12" y1="18" x2="12.01" y2="18"/>
+            <path d="M9 6h6v4H9z"/>
+          </svg>
 
           <header>
             <span class="launch-card__role">Step 01 · Provision Identity</span>
@@ -594,20 +591,15 @@
 
           <footer>
             <span class="qs-badge">Status: Offline (Provisioned)</span>
-            <button type="button" class="btn-info" data-dialog-target="modal-qs-step1">Expand ⤢</button>
+            <button type="button" class="btn-watch btn-watch--amber" data-dialog-target="modal-qs-step1">▶ Watch Demo</button>
           </footer>
         </article>
 
         <!-- STEP 2 -->
-        <article class="launch-card" data-dialog-target="modal-qs-step2">
-          <img
-            src="assets/step2-power-on.gif"
-            alt="Animated walkthrough of powering on a 5G SIM device and attaching to Open5GS radio"
-            width="1920"
-            height="1080"
-            loading="lazy"
-            class="qs-media"
-          >
+        <article class="launch-card">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+          </svg>
 
           <header>
             <span class="launch-card__role">Step 02 · Attach 5G Radio</span>
@@ -628,20 +620,16 @@
 
           <footer>
             <span class="qs-badge qs-badge--teal">Status: Active · 10.45.0.X</span>
-            <button type="button" class="btn-info" data-dialog-target="modal-qs-step2">Expand ⤢</button>
+            <button type="button" class="btn-watch btn-watch--teal" data-dialog-target="modal-qs-step2">▶ Watch Demo</button>
           </footer>
         </article>
 
         <!-- STEP 3 -->
-        <article class="launch-card launch-card--cyan" data-dialog-target="modal-qs-step3">
-          <img
-            src="assets/step3-traffic.gif"
-            alt="Animated walkthrough of generating HTTP and ICMP ping 8.8.8.8 traffic through the 5G tunnel"
-            width="1920"
-            height="1080"
-            loading="lazy"
-            class="qs-media"
-          >
+        <article class="launch-card launch-card--cyan">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            <path d="m9 12 2 2 4-4"/>
+          </svg>
 
           <header>
             <span class="launch-card__role">Step 03 · Validate Data Plane</span>
@@ -662,7 +650,7 @@
 
           <footer>
             <span class="qs-badge qs-badge--cyan">Zero-Trust Enforced over SPI</span>
-            <button type="button" class="btn-info" data-dialog-target="modal-qs-step3">Expand ⤢</button>
+            <button type="button" class="btn-watch btn-watch--cyan" data-dialog-target="modal-qs-step3">▶ Watch Demo</button>
           </footer>
         </article>
       </div>

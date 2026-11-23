@@ -516,31 +516,42 @@ a {
   color: var(--amber);
 }
 
-.qs-grid .launch-card {
-  cursor: pointer;
-}
-
-.qs-media {
-  inline-size: 100%;
-  aspect-ratio: 16 / 9;
-  object-fit: cover;
-  border-radius: 9px;
+.btn-watch {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--white);
+  background: rgba(255, 255, 255, 0.06);
   border: 1px solid var(--stroke-hi);
-  background: #06090e;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
-  transition: border-color 0.2s var(--ease), transform 0.2s var(--ease);
+  padding-block: 0.36rem;
+  padding-inline: 0.75rem;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: safe center;
+  gap: 0.35rem;
+  transition: color 0.16s ease, border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
 }
 
-.launch-card--amber:hover .qs-media {
-  border-color: rgba(245, 158, 11, 0.55);
+.btn-watch--amber:hover {
+  color: var(--amber);
+  border-color: var(--amber);
+  background: rgba(245, 158, 11, 0.12);
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.2);
 }
 
-.launch-card:hover .qs-media {
-  border-color: rgba(24, 201, 174, 0.55);
+.btn-watch--teal:hover {
+  color: var(--teal);
+  border-color: var(--teal);
+  background: var(--teal-bg);
+  box-shadow: 0 0 14px var(--teal-glow);
 }
 
-.launch-card--cyan:hover .qs-media {
-  border-color: rgba(0, 212, 255, 0.55);
+.btn-watch--cyan:hover {
+  color: var(--cyan);
+  border-color: var(--cyan);
+  background: rgba(0, 212, 255, 0.12);
+  box-shadow: 0 0 14px var(--cyan-glow);
 }
 
 .qs-badge {
@@ -788,14 +799,15 @@ dialog.modal {
 }
 
 dialog.modal--video {
-  inline-size: min(1040px, 94dvw);
-  max-block-size: 90dvh;
+  inline-size: min(1160px, 95dvw);
+  max-block-size: 92dvh;
 }
 
 .modal__video-img {
   inline-size: 100%;
-  aspect-ratio: 16 / 9;
   block-size: auto;
+  max-block-size: 72dvh;
+  object-fit: contain;
   border-radius: 10px;
   border: 1px solid var(--stroke-hi);
   background: #06090e;
