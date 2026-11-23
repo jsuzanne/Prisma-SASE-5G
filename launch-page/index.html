@@ -6,7 +6,7 @@
   <title>Stigix 5G Lab — Launchpad</title>
   <meta name="description" content="Launchpad for the Stigix 5G Lab: Open5GS Packet Core, UERANSIM RAN, Palo Alto Networks Prisma SASE 5G (SPI), and Stigix L4/L7 Traffic Validation.">
   <link rel="icon" type="image/png" href="assets/stigix-favicon.png">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
 
@@ -128,66 +128,6 @@
         </article>
 
       </div>
-    </section>
-
-    <!-- Glowing Horizontal Divider -->
-    <div class="glow-line" role="separator" aria-hidden="true"></div>
-
-    <!-- ──────────────────────────────────────────────────────
-         1.5 QUICK START TUTORIAL (3-Step SIM Onboarding Flow)
-    ────────────────────────────────────────────────────── -->
-    <section aria-labelledby="sec-quickstart">
-      <div class="sec-head">
-        <h2 class="sec-title" id="sec-quickstart">Quick Start · Add &amp; Test a 5G SIM in 3 Steps</h2>
-        <span class="sec-hint">~30 Seconds End-to-End</span>
-      </div>
-
-      <ol class="qs-grid">
-        <li>
-          <article class="qs-card">
-            <header>
-              <span class="qs-step">Step 01 · Provision</span>
-              <h3 class="qs-title">Create SIM Identity</h3>
-            </header>
-            <p class="qs-desc">
-              In <a href="https://5gorchestrator.stigix.io/" target="_blank" rel="noopener noreferrer">5G Orchestrator ↗</a>, click <code>+ Add New SIM</code>, pick a 1-click industry preset (e.g. <em>Avionics iPad</em> or <em>Retail POS</em>), and click <code>Create SIM</code>. This registers the IMSI/IMEI in <strong>Prisma SASE 5G (SCM)</strong> and writes 3GPP keys into <strong>Open5GS MongoDB</strong>.
-            </p>
-            <footer>
-              <span class="qs-badge">State: Offline (Provisioned)</span>
-            </footer>
-          </article>
-        </li>
-
-        <li>
-          <article class="qs-card qs-card--teal">
-            <header>
-              <span class="qs-step">Step 02 · Attach Radio</span>
-              <h3 class="qs-title">Power On 5G Device</h3>
-            </header>
-            <p class="qs-desc">
-              Click <code>⚡ Power On</code> on the SIM row. The RAN Agent spawns a real <code>nr-ue</code> modem on VM 1, authenticates over <strong>N2/N3</strong> with the Open5GS Core, creates a dedicated Linux tunnel (<code>uesimtunX</code> with IP <code>10.45.0.X</code>), and binds the live IP to the SIM identity in <strong>SCM</strong>.
-            </p>
-            <footer>
-              <span class="qs-badge qs-badge--teal">State: Active · 10.45.0.X (uesimtunX)</span>
-            </footer>
-          </article>
-        </li>
-
-        <li>
-          <article class="qs-card qs-card--cyan">
-            <header>
-              <span class="qs-step">Step 03 · Validate</span>
-              <h3 class="qs-title">Generate Traffic &amp; Inspect</h3>
-            </header>
-            <p class="qs-desc">
-              Click <code>Traffic</code> (Ping / Threat check) or open <a href="https://stigix5glab.stigix.io/" target="_blank" rel="noopener noreferrer">Stigix 5G Lab ↗</a> to inject VoIP RTP, SaaS, and EICAR security tests directly through <code>uesimtun*</code>, and switch the SIM group between <code>Permissive</code> and <code>Restrictive</code> in real time.
-            </p>
-            <footer>
-              <span class="qs-badge qs-badge--cyan">Zero-Trust Enforced over SPI</span>
-            </footer>
-          </article>
-        </li>
-      </ol>
     </section>
 
     <!-- Glowing Horizontal Divider -->
@@ -608,6 +548,108 @@
           </div>
         </div>
 
+      </div>
+    </section>
+
+    <!-- Glowing Horizontal Divider -->
+    <div class="glow-line" role="separator" aria-hidden="true"></div>
+
+    <!-- ──────────────────────────────────────────────────────
+         3. QUICK START TUTORIAL (3 Sleek Cards Below Architecture)
+    ────────────────────────────────────────────────────── -->
+    <section aria-labelledby="sec-quickstart">
+      <div class="sec-head">
+        <h2 class="sec-title" id="sec-quickstart">Quick Start · Add &amp; Test a 5G SIM in 3 Steps</h2>
+        <span class="sec-hint">~30 Seconds End-to-End</span>
+      </div>
+
+      <div class="qs-grid">
+        <!-- STEP 1 -->
+        <article class="launch-card launch-card--amber">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
+            <line x1="12" y1="18" x2="12.01" y2="18"/>
+            <path d="M9 6h6v4H9z"/>
+          </svg>
+
+          <header>
+            <span class="launch-card__role">Step 01 · Provision Identity</span>
+            <h3 class="launch-card__title">Create 5G SIM Card</h3>
+            <span class="launch-card__domain">5gorchestrator.stigix.io</span>
+          </header>
+
+          <div class="launch-card__body">
+            <p class="launch-card__desc">
+              Click <strong>+ Add New SIM</strong>, pick a 1-click industry preset (e.g. <em>Avionics iPad</em> or <em>Retail POS</em>), and click <strong>Create SIM</strong>. Registers IMSI/IMEI in <strong>Prisma SASE 5G</strong> and 3GPP keys in <strong>Open5GS MongoDB</strong>.
+            </p>
+            <div class="chip-row">
+              <span class="chip">1-Click Preset</span>
+              <span class="chip">SCM Identity</span>
+              <span class="chip">MongoDB UDR</span>
+            </div>
+          </div>
+
+          <footer>
+            <span class="qs-badge">Status: Offline (Provisioned)</span>
+          </footer>
+        </article>
+
+        <!-- STEP 2 -->
+        <article class="launch-card">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+          </svg>
+
+          <header>
+            <span class="launch-card__role">Step 02 · Attach 5G Radio</span>
+            <h3 class="launch-card__title">Power On Device</h3>
+            <span class="launch-card__domain">UERANSIM nr-ue ➔ Open5GS SMF</span>
+          </header>
+
+          <div class="launch-card__body">
+            <p class="launch-card__desc">
+              Click <strong>⚡ Power On</strong> on the SIM row. Spawns a real <code>nr-ue</code> modem on VM 1, authenticates over <strong>N2/N3</strong>, allocates a dynamic <code>10.45.0.X</code> IP on <code>uesimtunX</code>, and pushes the live IP binding to <strong>SCM</strong>.
+            </p>
+            <div class="chip-row">
+              <span class="chip">uesimtunX Created</span>
+              <span class="chip">10.45.0.X Assigned</span>
+              <span class="chip">SCM IP Bound</span>
+            </div>
+          </div>
+
+          <footer>
+            <span class="qs-badge qs-badge--teal">Status: Active · 10.45.0.X</span>
+          </footer>
+        </article>
+
+        <!-- STEP 3 -->
+        <article class="launch-card launch-card--cyan">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            <path d="m9 12 2 2 4-4"/>
+          </svg>
+
+          <header>
+            <span class="launch-card__role">Step 03 · Validate Zero-Trust</span>
+            <h3 class="launch-card__title">Inject Traffic &amp; Enforce</h3>
+            <span class="launch-card__domain">stigix5glab.stigix.io</span>
+          </header>
+
+          <div class="launch-card__body">
+            <p class="launch-card__desc">
+              Click <strong>Traffic</strong> on the SIM row or use <strong>Stigix 5G Lab</strong> to inject VoIP RTP, SaaS, and EICAR threats over <code>uesimtun*</code>. Switch the SIM group between <strong>Permissive</strong> and <strong>Restrictive</strong> in real time.
+            </p>
+            <div class="chip-row">
+              <span class="chip">Voice RTP &amp; EICAR</span>
+              <span class="chip">Policy Shift</span>
+              <span class="chip">SPI Inspection</span>
+            </div>
+          </div>
+
+          <footer>
+            <span class="qs-badge qs-badge--cyan">Zero-Trust Enforced over SPI</span>
+          </footer>
+        </article>
       </div>
     </section>
 

@@ -487,130 +487,57 @@ a {
    QUICK START 3-STEP TUTORIAL CARDS
 ───────────────────────────────────────────── */
 .qs-grid {
-  list-style: none;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
-  grid-template-rows: auto 1fr auto;
-  gap: 1.1rem;
+  grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+  grid-template-rows: auto auto 1fr auto;
+  gap: 1.25rem;
 }
 
-.qs-grid > li {
-  grid-row: span 3;
-  display: grid;
-  grid-template-rows: auto 1fr auto;
-  grid-template-rows: subgrid;
+@media (max-width: 480px) {
+  .qs-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
-.qs-card {
-  container: qscard / inline-size;
-  grid-row: span 3;
-  display: grid;
-  grid-template-rows: auto 1fr auto;
-  grid-template-rows: subgrid;
-  row-gap: 0.65rem;
-  background: var(--bg-card);
-  border: 1px solid var(--stroke-hi);
-  border-radius: var(--rl);
-  padding: 1.15rem 1.25rem;
-  backdrop-filter: blur(12px);
-  transition: border-color 0.2s var(--ease), transform 0.2s var(--ease);
-}
-
-.qs-card:hover {
-  transform: translateY(-2px);
+.launch-card--amber:hover {
   border-color: var(--amber);
+  box-shadow:
+    0 18px 40px rgba(0, 0, 0, 0.55),
+    0 0 26px rgba(245, 158, 11, 0.18);
 }
 
-.qs-card--teal:hover {
-  border-color: var(--teal);
-}
-
-.qs-card--cyan:hover {
-  border-color: var(--cyan);
-}
-
-.qs-card > header {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-}
-
-.qs-step {
-  font-family: var(--mono);
-  font-size: 0.64rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+.launch-card--amber > svg {
+  background: rgba(245, 158, 11, 0.08);
+  border-color: rgba(245, 158, 11, 0.28);
   color: var(--amber);
 }
 
-.qs-card--teal .qs-step {
-  color: var(--teal);
-}
-
-.qs-card--cyan .qs-step {
-  color: var(--cyan);
-}
-
-.qs-title {
-  font-size: 1.02rem;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  color: var(--white);
-}
-
-.qs-desc {
-  font-size: 0.82rem;
-  color: var(--mid);
-  line-height: 1.52;
-}
-
-.qs-desc a {
-  color: var(--teal);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-.qs-desc code {
-  font-family: var(--mono);
-  font-size: 0.74rem;
-  color: var(--white);
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--stroke-hi);
-  padding-block: 0.08rem;
-  padding-inline: 0.35rem;
-  border-radius: 4px;
-}
-
-.qs-card > footer {
-  padding-block-start: 0.65rem;
-  border-block-start: 1px solid var(--stroke);
-  display: flex;
-  align-items: safe center;
+.launch-card--amber .launch-card__role {
+  color: var(--amber);
 }
 
 .qs-badge {
   font-family: var(--mono);
-  font-size: 0.66rem;
+  font-size: 0.7rem;
   font-weight: 600;
   color: var(--amber);
-  background: rgba(245, 158, 11, 0.08);
-  border: 1px solid rgba(245, 158, 11, 0.28);
-  padding-block: 0.22rem;
-  padding-inline: 0.55rem;
-  border-radius: 5px;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.32);
+  padding-block: 0.32rem;
+  padding-inline: 0.7rem;
+  border-radius: 6px;
 }
 
 .qs-badge--teal {
   color: var(--teal);
   background: var(--teal-bg);
-  border-color: rgba(24, 201, 174, 0.28);
+  border-color: rgba(24, 201, 174, 0.32);
 }
 
 .qs-badge--cyan {
   color: var(--cyan);
-  background: rgba(0, 212, 255, 0.08);
-  border-color: rgba(0, 212, 255, 0.28);
+  background: rgba(0, 212, 255, 0.1);
+  border-color: rgba(0, 212, 255, 0.32);
 }
 
 /* ─────────────────────────────────────────────
