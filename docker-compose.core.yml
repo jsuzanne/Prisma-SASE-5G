@@ -20,7 +20,9 @@ services:
       # - PANW_CLIENT_SECRET=...
       # - PANW_TSG_ID=...
     volumes:
+      - /var/log/open5gs:/var/log/open5gs:ro
       - ./config:/app/config
       - ./data:/app/data
       - ~/.ssh:/root/.ssh:ro
+      - /var/run/docker.sock:/var/run/docker.sock
     restart: unless-stopped

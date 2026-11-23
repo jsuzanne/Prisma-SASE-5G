@@ -466,6 +466,409 @@ def get_app_version():
     return get_version_info()
 
 
+# -----------------------------------------------------------------------------
+# Ephemeral Container 1-Click Self-Upgrade Engine (Stigix Pattern)
+# -----------------------------------------------------------------------------
+
+_UPGRADE_STATUS: Dict[str, Any] = {
+    "inProgress": False,
+    "version": None,
+    "stage": "idle",
+    "logs": [],
+    "error": None,
+    "startTime": None,
+}
+_VERSION_CHECK_CACHE: Dict[str, Any] = {"ts": 0.0, "data": None}
+
+
+def _upgrade_status_file() -> Path:
+    return get_config_dir() / ".upgrade_status.json"
+
+
+def _updater_log_file() -> Path:
+    return get_config_dir() / "orchestrator_updater.log"
+
+
+def _save_upgrade_status_to_disk() -> None:
+    try:
+        sf = _upgrade_status_file()
+        sf.parent.mkdir(parents=True, exist_ok=True)
+        sf.write_text(json.dumps({
+            "inProgress": _UPGRADE_STATUS.get("inProgress", False),
+            "version": _UPGRADE_STATUS.get("version"),
+            "stage": _UPGRADE_STATUS.get("stage", "idle"),
+            "error": _UPGRADE_STATUS.get("error"),
+            "completedAt": int(time.time() * 1000),
+        }), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _detect_local_docker_info(container_name: str = "prisma-5g-core") -> Dict[str, Any]:
+    """Inspect local container and image to determine current digest, creation date, and host directory."""
+    info: Dict[str, Any] = {
+        "channel": "5g-orchestrator",
+        "fullImage": "jsuzanne/prisma-5g-sase:5g-orchestrator",
+        "createdDate": None,
+        "localDigest": None,
+        "hostDir": None,
+        "dockerReady": os.path.exists("/var/run/docker.sock"),
+    }
+    if not info["dockerReady"]:
+        return info
+    try:
+        r = subprocess.run(
+            ["docker", "inspect", container_name],
+            capture_output=True, text=True, timeout=4
+        )
+        if r.returncode == 0 and r.stdout.strip():
+            data = json.loads(r.stdout)[0]
+            info["createdDate"] = data.get("Created")
+            cfg_img = (data.get("Config") or {}).get("Image") or ""
+            if ":" in cfg_img:
+                info["fullImage"] = cfg_img
+                info["channel"] = cfg_img.split(":", 1)[1]
+            labels = (data.get("Config") or {}).get("Labels") or {}
+            if labels.get("com.docker.compose.project.working_dir"):
+                info["hostDir"] = labels["com.docker.compose.project.working_dir"]
+            else:
+                for m in data.get("Mounts") or []:
+                    if m.get("Destination") == "/app/config" and m.get("Source"):
+                        info["hostDir"] = str(Path(m["Source"]).parent)
+                        break
+            img_id = data.get("Image")
+            if img_id:
+                ir = subprocess.run(
+                    ["docker", "image", "inspect", img_id],
+                    capture_output=True, text=True, timeout=4
+                )
+                if ir.returncode == 0 and ir.stdout.strip():
+                    idata = json.loads(ir.stdout)[0]
+                    repo_digests = idata.get("RepoDigests") or []
+                    for rd in repo_digests:
+                        if "@sha256:" in rd:
+                            info["localDigest"] = "sha256:" + rd.split("@sha256:", 1)[1]
+                            break
+                    if not info["createdDate"]:
+                        info["createdDate"] = idata.get("Created")
+    except Exception as exc:
+        logger.warning("Docker local inspection warning: %s", exc)
+    return info
+
+
+@app.get("/api/admin/maintenance/version")
+def check_maintenance_version(force: bool = False):
+    """Check Docker Hub for newer builds of jsuzanne/prisma-5g-sase:5g-orchestrator."""
+    now = time.time()
+    if not force and _VERSION_CHECK_CACHE["data"] and (now - _VERSION_CHECK_CACHE["ts"] < 45):
+        return _VERSION_CHECK_CACHE["data"]
+
+    v_info = get_version_info()
+    current_version = v_info.get("version", "2.4.0")
+    current_commit = v_info.get("commit", "")
+    local_docker = _detect_local_docker_info()
+    channel = local_docker["channel"]
+    full_image = local_docker["fullImage"]
+    docker_ready = local_docker["dockerReady"]
+
+    remote_digest = None
+    remote_build_date = None
+    remote_sha_tag = None
+    update_available = False
+
+    try:
+        hub_url = f"https://hub.docker.com/v2/repositories/jsuzanne/prisma-5g-sase/tags/{channel}/"
+        resp = requests.get(hub_url, timeout=4)
+        if resp.status_code == 200:
+            hdata = resp.json()
+            remote_digest = hdata.get("digest") or (
+                (hdata.get("images") or [{}])[0].get("digest") if hdata.get("images") else None
+            )
+            remote_build_date = hdata.get("last_updated")
+            if local_docker["localDigest"] and remote_digest:
+                if local_docker["localDigest"] != remote_digest:
+                    update_available = True
+            elif remote_build_date and local_docker["createdDate"]:
+                try:
+                    from datetime import datetime
+                    r_dt = datetime.fromisoformat(remote_build_date.replace("Z", "+00:00")).timestamp()
+                    l_dt = datetime.fromisoformat(local_docker["createdDate"].replace("Z", "+00:00")).timestamp()
+                    if r_dt > l_dt + 60:
+                        update_available = True
+                except Exception:
+                    pass
+
+        tags_url = "https://hub.docker.com/v2/repositories/jsuzanne/prisma-5g-sase/tags/?page_size=15&page=1"
+        tresp = requests.get(tags_url, timeout=4)
+        if tresp.status_code == 200:
+            results = tresp.json().get("results") or []
+            for item in results:
+                tname = item.get("name") or ""
+                if tname.startswith("sha-"):
+                    if not remote_digest or item.get("digest") == remote_digest:
+                        remote_sha_tag = tname.replace("sha-", "")
+                        break
+    except Exception as exc:
+        logger.warning("Docker Hub version check failed: %s", exc)
+
+    result = {
+        "current": current_version,
+        "currentCommit": current_commit,
+        "latest": f"{current_version} ({remote_sha_tag})" if remote_sha_tag else current_version,
+        "latestCommit": remote_sha_tag or current_commit,
+        "channel": channel,
+        "targetImage": full_image,
+        "localDigest": (local_docker["localDigest"] or "")[:19],
+        "remoteDigest": (remote_digest or "")[:19],
+        "remoteBuildDate": remote_build_date,
+        "updateAvailable": update_available,
+        "dockerReady": docker_ready,
+        "dockerError": None if docker_ready else (
+            "Docker socket (/var/run/docker.sock) is not mounted into this container. "
+            "Add '- /var/run/docker.sock:/var/run/docker.sock' to volumes in docker-compose.yml."
+        ),
+    }
+    _VERSION_CHECK_CACHE["ts"] = now
+    _VERSION_CHECK_CACHE["data"] = result
+    return result
+
+
+@app.get("/api/admin/maintenance/status")
+def get_maintenance_status():
+    """Return live or persisted status and logs of the 1-click ephemeral container upgrade."""
+    try:
+        sf = _upgrade_status_file()
+        if sf.exists():
+            saved = json.loads(sf.read_text(encoding="utf-8"))
+            if saved.get("stage") in ("complete", "restarting", "failed"):
+                _UPGRADE_STATUS["inProgress"] = bool(saved.get("inProgress", False))
+                _UPGRADE_STATUS["stage"] = "complete" if saved.get("stage") == "restarting" else saved.get("stage")
+                if saved.get("version"):
+                    _UPGRADE_STATUS["version"] = saved["version"]
+                if saved.get("error"):
+                    _UPGRADE_STATUS["error"] = saved["error"]
+        lf = _updater_log_file()
+        if lf.exists():
+            content = lf.read_text(encoding="utf-8", errors="replace")
+            sessions = re.split(r"={20,}", content)
+            current_session = (sessions[-1] if sessions else "").strip()
+            lines = [ln.strip() for ln in current_session.splitlines() if ln.strip()]
+            if lines and not (_UPGRADE_STATUS.get("inProgress") and _UPGRADE_STATUS.get("stage") == "pulling"):
+                _UPGRADE_STATUS["logs"] = lines[-120:]
+    except Exception:
+        pass
+    return _UPGRADE_STATUS
+
+
+@app.post("/api/admin/maintenance/dismiss")
+def dismiss_maintenance_status():
+    """Clear completed or failed upgrade status banner."""
+    try:
+        sf = _upgrade_status_file()
+        if sf.exists():
+            sf.unlink()
+    except Exception:
+        pass
+    _UPGRADE_STATUS.update({
+        "inProgress": False,
+        "version": None,
+        "stage": "idle",
+        "logs": [],
+        "error": None,
+        "startTime": None,
+    })
+    return {"success": True, "message": "Upgrade status dismissed"}
+
+
+@app.post("/api/admin/maintenance/upgrade")
+def trigger_maintenance_upgrade(payload: Optional[Dict[str, Any]] = Body(default=None)):
+    """Start a 1-click resilient self-upgrade using a detached ephemeral container (Stigix pattern)."""
+    if not os.path.exists("/var/run/docker.sock"):
+        raise HTTPException(
+            status_code=400,
+            detail="Docker socket (/var/run/docker.sock) is not mounted into this container. Add '- /var/run/docker.sock:/var/run/docker.sock' to volumes in docker-compose.yml."
+        )
+    if _UPGRADE_STATUS.get("inProgress"):
+        raise HTTPException(status_code=400, detail="An upgrade is already in progress.")
+
+    local_docker = _detect_local_docker_info()
+    pull_image = local_docker["fullImage"]
+    channel = local_docker["channel"]
+    host_dir = local_docker["hostDir"] or "/home/jsuzanne/Docker/5g-orchestrator"
+    host_config_dir = f"{host_dir}/config"
+    host_compose_file = f"{host_dir}/docker-compose.yml"
+    upgrade_agent = bool((payload or {}).get("upgrade_agent", False))
+
+    _UPGRADE_STATUS.update({
+        "inProgress": True,
+        "version": channel,
+        "stage": "pulling",
+        "logs": [f"[{time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}] 🚀 Upgrade initiated towards image: {pull_image}"],
+        "error": None,
+        "startTime": int(time.time() * 1000),
+    })
+    _save_upgrade_status_to_disk()
+
+    try:
+        lf = _updater_log_file()
+        lf.parent.mkdir(parents=True, exist_ok=True)
+        with open(lf, "a", encoding="utf-8") as f:
+            f.write(
+                f"\n=================================================\n"
+                f"[{time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}] [UPDATER] Upgrade session initialized for {pull_image}\n"
+            )
+    except Exception:
+        pass
+
+    def _run_upgrade_worker():
+        def _log(msg: str):
+            line = f"[{time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}] {msg}"
+            _UPGRADE_STATUS["logs"].append(line)
+            if len(_UPGRADE_STATUS["logs"]) > 120:
+                _UPGRADE_STATUS["logs"] = _UPGRADE_STATUS["logs"][-120:]
+            try:
+                with open(_updater_log_file(), "a", encoding="utf-8") as f:
+                    f.write(line + "\n")
+            except Exception:
+                pass
+
+        try:
+            # 1. Resilient Pull Phase (up to 3 retries) BEFORE touching the running container
+            pull_ok = False
+            for attempt in range(1, 4):
+                _log(f"[PULL] Attempt {attempt}/3: docker pull {pull_image}")
+                _save_upgrade_status_to_disk()
+                proc = subprocess.Popen(
+                    ["docker", "pull", pull_image],
+                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+                )
+                assert proc.stdout is not None
+                for raw_line in proc.stdout:
+                    s = raw_line.strip()
+                    if s:
+                        _log(f"[PULL] {s}")
+                rc = proc.wait()
+                if rc == 0:
+                    pull_ok = True
+                    _log(f"✅ [PULL] Image {pull_image} downloaded successfully on attempt {attempt}.")
+                    break
+                _log(f"⚠️ [PULL] Attempt {attempt} exited with code {rc}.")
+                if attempt < 3:
+                    time.sleep(4)
+
+            if not pull_ok:
+                _UPGRADE_STATUS["inProgress"] = False
+                _UPGRADE_STATUS["stage"] = "failed"
+                _UPGRADE_STATUS["error"] = "Docker pull failed after 3 attempts. Running instance left untouched."
+                _log(f"❌ {_UPGRADE_STATUS['error']}")
+                _save_upgrade_status_to_disk()
+                return
+
+            # Optional: if user also opted to pull new image on RAN Agent VM (without killing active UEs unless requested)
+            if upgrade_agent:
+                _log("[RAN-AGENT] Pulling latest image on RAN VM (152.236.5.67)...")
+                ran_res = subprocess.run(
+                    ["ssh", "-o", "ConnectTimeout=5", "-o", "StrictHostKeyChecking=no", "jsuzanne@152.236.5.67",
+                     f"docker pull {pull_image}"],
+                    capture_output=True, text=True, timeout=60
+                )
+                if ran_res.returncode == 0:
+                    _log("✅ [RAN-AGENT] Image pre-pulled on RAN VM (152.236.5.67).")
+                else:
+                    _log(f"⚠️ [RAN-AGENT] Pre-pull note: {ran_res.stderr.strip()[:160]}")
+
+            # 2. Write ephemeral updater script into /app/config
+            _UPGRADE_STATUS["stage"] = "restarting"
+            _log("Pull validated. Launching detached ephemeral updater container...")
+            _save_upgrade_status_to_disk()
+
+            script_content = f"""#!/bin/sh
+LOG_FILE="/config/orchestrator_updater.log"
+STATUS_FILE="/config/.upgrade_status.json"
+
+echo "[$(date -u)] [UPDATER] Ephemeral updater container started" >> "$LOG_FILE"
+echo "[$(date -u)] [UPDATER] Host project directory: {host_dir}" >> "$LOG_FILE"
+sleep 2
+
+if [ -f "{host_compose_file}" ]; then
+    echo "[$(date -u)] [UPDATER] Recreating prisma-5g-core via docker compose..." >> "$LOG_FILE"
+    (docker compose -f "{host_compose_file}" up -d --force-recreate 2>&1 || docker-compose -f "{host_compose_file}" up -d --force-recreate 2>&1) | while IFS= read -r line; do
+        echo "[$(date -u)] [COMPOSE] $line" >> "$LOG_FILE"
+    done
+else
+    echo "[$(date -u)] [UPDATER] Restarting prisma-5g-core container directly..." >> "$LOG_FILE"
+    docker restart prisma-5g-core >> "$LOG_FILE" 2>&1
+fi
+
+echo "[$(date -u)] [UPDATER] Waiting for new prisma-5g-core healthcheck on :8080..." >> "$LOG_FILE"
+HEALTHY=0
+for i in $(seq 1 30); do
+    sleep 2
+    if curl -sf http://127.0.0.1:8080/api/version >/dev/null 2>&1; then
+        HEALTHY=1
+        echo "[$(date -u)] [UPDATER] ✅ Healthcheck passed on attempt $i!" >> "$LOG_FILE"
+        break
+    fi
+done
+
+NOW=$(date +%s000 2>/dev/null || date +%s)
+if [ "$HEALTHY" -eq 1 ]; then
+    echo "[$(date -u)] [UPDATER] 🧹 Pruning dangling images..." >> "$LOG_FILE"
+    (docker image prune -f 2>&1 || true) | while IFS= read -r line; do
+        echo "[$(date -u)] [PRUNE] $line" >> "$LOG_FILE"
+    done
+    echo "[$(date -u)] [UPDATER] 🚀 Upgrade successfully finalized!" >> "$LOG_FILE"
+    cat << EOF > "$STATUS_FILE"
+{{"inProgress":false,"version":"{channel}","stage":"complete","error":null,"completedAt":$NOW}}
+EOF
+else
+    echo "[$(date -u)] [UPDATER] ⚠️ Healthcheck timed out after 60 seconds." >> "$LOG_FILE"
+    cat << EOF > "$STATUS_FILE"
+{{"inProgress":false,"version":"{channel}","stage":"failed","error":"New container failed healthcheck within 60s.","completedAt":$NOW}}
+EOF
+fi
+rm -f /config/orchestrator_ephemeral_updater.sh
+"""
+            script_path = get_config_dir() / "orchestrator_ephemeral_updater.sh"
+            script_path.write_text(script_content, encoding="utf-8")
+            os.chmod(script_path, 0o755)
+
+            updater_name = f"prisma-5g-updater-{int(time.time())}"
+            spawn_cmd = [
+                "docker", "run", "-d",
+                "--name", updater_name,
+                "--rm",
+                "--network", "host",
+                "--entrypoint", "/bin/sh",
+                "-v", "/var/run/docker.sock:/var/run/docker.sock",
+                "-v", "/usr/bin/docker:/usr/bin/docker:ro",
+                "-v", "/usr/libexec/docker/cli-plugins:/usr/libexec/docker/cli-plugins:ro",
+                "-v", f"{host_dir}:{host_dir}",
+                "-v", f"{host_config_dir}:/config",
+                "-w", host_dir,
+                pull_image,
+                "/config/orchestrator_ephemeral_updater.sh",
+            ]
+            _log(f"Spawning detached helper: {' '.join(spawn_cmd)}")
+            sr = subprocess.run(spawn_cmd, capture_output=True, text=True, timeout=10)
+            if sr.returncode != 0:
+                _UPGRADE_STATUS["inProgress"] = False
+                _UPGRADE_STATUS["stage"] = "failed"
+                _UPGRADE_STATUS["error"] = f"Failed to spawn ephemeral updater: {sr.stderr.strip()}"
+                _log(f"❌ {_UPGRADE_STATUS['error']}")
+                _save_upgrade_status_to_disk()
+        except Exception as exc:
+            _UPGRADE_STATUS["inProgress"] = False
+            _UPGRADE_STATUS["stage"] = "failed"
+            _UPGRADE_STATUS["error"] = str(exc)
+            _log(f"❌ Unexpected upgrade error: {exc}")
+            _save_upgrade_status_to_disk()
+
+    threading.Thread(target=_run_upgrade_worker, daemon=True).start()
+    _VERSION_CHECK_CACHE["ts"] = 0.0
+    return {"success": True, "message": "Upgrade started in background"}
+
+
 @app.get("/api/changelog")
 def get_changelog():
     """Retrieve application changelog markdown."""

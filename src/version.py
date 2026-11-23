@@ -70,7 +70,8 @@ def get_version_info() -> Dict[str, Any]:
             pass
 
     commit_count = _get_git_commit_count(repo_dir)
-    commit_sha = env_commit or _get_git_commit_hash(repo_dir)
+    raw_commit = env_commit or _get_git_commit_hash(repo_dir)
+    commit_sha = raw_commit[:7] if len(raw_commit) > 7 else raw_commit
 
     if env_version:
         version_str = env_version
