@@ -3271,15 +3271,7 @@
                     </select>
                 </div>
 
-                <div class="pt-2 border-t border-white/10">
-                    <label class="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" id="add-sim-auto-session" checked class="rounded border-gray-700 text-cyan-500 focus:ring-0">
-                        <span class="text-gray-300 text-xs font-semibold">Auto-attach to 5G Radio & Register Dynamic Core IP</span>
-                    </label>
-                    <p class="text-[11px] text-cyan-400/80 font-mono mt-1">Open5GS Core will dynamically allocate the IP (10.45.0.X) and register Zero-Trust session to SCM.</p>
-                </div>
-
-                <div class="flex items-center justify-end gap-3 pt-2">
+                <div class="flex items-center justify-end gap-3 pt-2 border-t border-white/10">
                     <button type="button" onclick="closeAddSimModal()" class="px-4 py-2 rounded-xl glass-panel text-gray-400 hover:text-white">Cancel</button>
                     <button type="submit" id="btn-submit-add-sim" class="px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black font-semibold flex items-center gap-1.5 shadow">
                         <i data-lucide="check" class="w-4 h-4"></i> Create SIM
@@ -6814,9 +6806,7 @@
             const imei = document.getElementById('add-sim-imei').value.trim();
             const apn = document.getElementById('add-sim-apn').value.trim();
             const tsg_id = document.getElementById('add-sim-tsg').value;
-            const autoSessionEl = document.getElementById('add-sim-auto-session');
-            const autoSession = autoSessionEl ? autoSessionEl.checked : true;
-            const sessionIp = null; // Automatically assigned by Open5GS Core UPF
+            const sessionIp = null; // Automatically assigned by Open5GS Core UPF on Power On
             const vertical = document.getElementById('add-sim-vertical').value;
             const device_type = document.getElementById('add-sim-device-type').value.trim();
             const custom_label = document.getElementById('add-sim-memo').value.trim();
