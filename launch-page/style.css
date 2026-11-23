@@ -516,6 +516,33 @@ a {
   color: var(--amber);
 }
 
+.qs-grid .launch-card {
+  cursor: pointer;
+}
+
+.qs-media {
+  inline-size: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 9px;
+  border: 1px solid var(--stroke-hi);
+  background: #06090e;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  transition: border-color 0.2s var(--ease), transform 0.2s var(--ease);
+}
+
+.launch-card--amber:hover .qs-media {
+  border-color: rgba(245, 158, 11, 0.55);
+}
+
+.launch-card:hover .qs-media {
+  border-color: rgba(24, 201, 174, 0.55);
+}
+
+.launch-card--cyan:hover .qs-media {
+  border-color: rgba(0, 212, 255, 0.55);
+}
+
 .qs-badge {
   font-family: var(--mono);
   font-size: 0.7rem;
@@ -758,6 +785,21 @@ dialog.modal {
     0 28px 70px rgba(0, 0, 0, 0.8),
     0 0 36px var(--teal-glow);
   overflow-y: auto;
+}
+
+dialog.modal--video {
+  inline-size: min(1040px, 94dvw);
+  max-block-size: 90dvh;
+}
+
+.modal__video-img {
+  inline-size: 100%;
+  aspect-ratio: 16 / 9;
+  block-size: auto;
+  border-radius: 10px;
+  border: 1px solid var(--stroke-hi);
+  background: #06090e;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.65);
 }
 
 /* MANDATORY scroll containment rules from modern-web-guidance `dialog` */

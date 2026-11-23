@@ -14,12 +14,14 @@
 
   const triggers = document.querySelectorAll('[data-dialog-target]');
   triggers.forEach((el) => {
-    el.addEventListener('click', () => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
       openModal(el.getAttribute('data-dialog-target'));
     });
     el.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
+        e.stopPropagation();
         openModal(el.getAttribute('data-dialog-target'));
       }
     });

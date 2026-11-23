@@ -6,7 +6,7 @@
   <title>Stigix 5G Lab — Launchpad</title>
   <meta name="description" content="Launchpad for the Stigix 5G Lab: Open5GS Packet Core, UERANSIM RAN, Palo Alto Networks Prisma SASE 5G (SPI), and Stigix L4/L7 Traffic Validation.">
   <link rel="icon" type="image/png" href="assets/stigix-favicon.png">
-  <link rel="stylesheet" href="style.css?v=2">
+  <link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
 
@@ -560,17 +560,20 @@
     <section aria-labelledby="sec-quickstart">
       <div class="sec-head">
         <h2 class="sec-title" id="sec-quickstart">Quick Start · Add &amp; Test a 5G SIM in 3 Steps</h2>
-        <span class="sec-hint">~30 Seconds End-to-End</span>
+        <span class="sec-hint">~30 Seconds End-to-End · Click any preview to enlarge</span>
       </div>
 
       <div class="qs-grid">
         <!-- STEP 1 -->
-        <article class="launch-card launch-card--amber">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
-            <line x1="12" y1="18" x2="12.01" y2="18"/>
-            <path d="M9 6h6v4H9z"/>
-          </svg>
+        <article class="launch-card launch-card--amber" data-dialog-target="modal-qs-step1">
+          <img
+            src="assets/step1-add-sim.gif"
+            alt="Animated walkthrough of registering a new 5G SIM card in 5G Orchestrator"
+            width="1920"
+            height="1080"
+            loading="lazy"
+            class="qs-media"
+          >
 
           <header>
             <span class="launch-card__role">Step 01 · Provision Identity</span>
@@ -591,14 +594,20 @@
 
           <footer>
             <span class="qs-badge">Status: Offline (Provisioned)</span>
+            <button type="button" class="btn-info" data-dialog-target="modal-qs-step1">Expand ⤢</button>
           </footer>
         </article>
 
         <!-- STEP 2 -->
-        <article class="launch-card">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-          </svg>
+        <article class="launch-card" data-dialog-target="modal-qs-step2">
+          <img
+            src="assets/step2-power-on.gif"
+            alt="Animated walkthrough of powering on a 5G SIM device and attaching to Open5GS radio"
+            width="1920"
+            height="1080"
+            loading="lazy"
+            class="qs-media"
+          >
 
           <header>
             <span class="launch-card__role">Step 02 · Attach 5G Radio</span>
@@ -619,35 +628,41 @@
 
           <footer>
             <span class="qs-badge qs-badge--teal">Status: Active · 10.45.0.X</span>
+            <button type="button" class="btn-info" data-dialog-target="modal-qs-step2">Expand ⤢</button>
           </footer>
         </article>
 
         <!-- STEP 3 -->
-        <article class="launch-card launch-card--cyan">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-            <path d="m9 12 2 2 4-4"/>
-          </svg>
+        <article class="launch-card launch-card--cyan" data-dialog-target="modal-qs-step3">
+          <img
+            src="assets/step3-traffic.gif"
+            alt="Animated walkthrough of generating HTTP and ICMP ping 8.8.8.8 traffic through the 5G tunnel"
+            width="1920"
+            height="1080"
+            loading="lazy"
+            class="qs-media"
+          >
 
           <header>
-            <span class="launch-card__role">Step 03 · Validate Zero-Trust</span>
-            <h3 class="launch-card__title">Inject Traffic &amp; Enforce</h3>
-            <span class="launch-card__domain">stigix5glab.stigix.io</span>
+            <span class="launch-card__role">Step 03 · Validate Data Plane</span>
+            <h3 class="launch-card__title">Generate Live 5G Traffic</h3>
+            <span class="launch-card__domain">HTTP &amp; ICMP Ping 8.8.8.8</span>
           </header>
 
           <div class="launch-card__body">
             <p class="launch-card__desc">
-              Click <strong>Traffic</strong> on the SIM row or use <strong>Stigix 5G Lab</strong> to inject VoIP RTP, SaaS, and EICAR threats over <code>uesimtun*</code>. Switch the SIM group between <strong>Permissive</strong> and <strong>Restrictive</strong> in real time.
+              Click <strong>Traffic</strong> on the active SIM row to run live <strong>HTTP</strong> and <strong>ICMP Ping (8.8.8.8)</strong> checks bound to its dedicated <code>uesimtunX</code> tunnel, or inject full L4/L7 scenarios from <strong>Stigix 5G Lab</strong>.
             </p>
             <div class="chip-row">
-              <span class="chip">Voice RTP &amp; EICAR</span>
-              <span class="chip">Policy Shift</span>
+              <span class="chip">HTTP Web Check</span>
+              <span class="chip">ICMP Ping 8.8.8.8</span>
               <span class="chip">SPI Inspection</span>
             </div>
           </div>
 
           <footer>
             <span class="qs-badge qs-badge--cyan">Zero-Trust Enforced over SPI</span>
+            <button type="button" class="btn-info" data-dialog-target="modal-qs-step3">Expand ⤢</button>
           </footer>
         </article>
       </div>
@@ -812,6 +827,57 @@
         <li><strong>3 · Open5GS SMF/AMF:</strong> Polls live PDU sessions and assigned mobile IPv4 addresses on VM 2.</li>
         <li><strong>4 · Prisma SASE 5G (SCM):</strong> Pushes 5G identities (<code>/tenantUEInfo</code>) and registers live session IPs (<code>/uesession/register</code>).</li>
       </ul>
+    </div>
+  </dialog>
+
+  <!-- Lightbox Modal: Step 1 (Add SIM) -->
+  <dialog id="modal-qs-step1" class="modal modal--video" closedby="any" aria-labelledby="title-qs-step1">
+    <div class="modal__inner">
+      <div class="modal__head">
+        <div>
+          <div class="modal__tag" style="color:var(--amber);">STEP 01 · PROVISION IDENTITY</div>
+          <h2 class="modal__title" id="title-qs-step1">Create 5G SIM Card in Orchestrator</h2>
+        </div>
+        <form method="dialog"><button type="submit" class="modal__close" autofocus>ESC</button></form>
+      </div>
+      <img src="assets/step1-add-sim.gif" alt="Step 1: Registering a new 5G SIM card" width="1920" height="1080" class="modal__video-img">
+      <p class="modal__lead">
+        Click <strong>+ Add New SIM</strong>, select a 1-click industry preset (e.g. <em>Avionics iPad</em> or <em>Retail POS</em>), and click <strong>Create SIM</strong> to provision the subscriber in <strong>Prisma SASE 5G (SCM)</strong> and <strong>Open5GS MongoDB</strong>.
+      </p>
+    </div>
+  </dialog>
+
+  <!-- Lightbox Modal: Step 2 (Power On SIM) -->
+  <dialog id="modal-qs-step2" class="modal modal--video" closedby="any" aria-labelledby="title-qs-step2">
+    <div class="modal__inner">
+      <div class="modal__head">
+        <div>
+          <div class="modal__tag">STEP 02 · ATTACH 5G RADIO</div>
+          <h2 class="modal__title" id="title-qs-step2">Power On 5G Device &amp; Allocate Dynamic IP</h2>
+        </div>
+        <form method="dialog"><button type="submit" class="modal__close" autofocus>ESC</button></form>
+      </div>
+      <img src="assets/step2-power-on.gif" alt="Step 2: Powering on the 5G SIM and attaching to Open5GS" width="1920" height="1080" class="modal__video-img">
+      <p class="modal__lead">
+        Click <strong>⚡ Power On</strong> on the SIM row to spawn its <code>nr-ue</code> radio process on VM 1, establish the N2/N3 PDU session with the Open5GS Core, bring up its dedicated <code>uesimtunX</code> interface (<code>10.45.0.X</code>), and bind the live IP in <strong>SCM</strong>.
+      </p>
+    </div>
+  </dialog>
+
+  <!-- Lightbox Modal: Step 3 (Generate Traffic) -->
+  <dialog id="modal-qs-step3" class="modal modal--video" closedby="any" aria-labelledby="title-qs-step3">
+    <div class="modal__inner">
+      <div class="modal__head">
+        <div>
+          <div class="modal__tag" style="color:var(--cyan);">STEP 03 · VALIDATE DATA PLANE</div>
+          <h2 class="modal__title" id="title-qs-step3">Generate Live 5G Traffic (HTTP &amp; Ping 8.8.8.8)</h2>
+        </div>
+        <form method="dialog"><button type="submit" class="modal__close" autofocus>ESC</button></form>
+      </div>
+      <img src="assets/step3-traffic.gif" alt="Step 3: Generating HTTP and ICMP ping 8.8.8.8 traffic over the 5G tunnel" width="1920" height="1080" class="modal__video-img">
+      <p class="modal__lead">
+        Click <strong>Traffic</strong> on the active SIM row to inject live <strong>HTTP</strong> and <strong>ICMP Ping (8.8.8.8)</strong> packets directly through its <code>uesimtunX</code> interface over the 5G GTP-U &amp; Prisma SASE SPI tunnels.
+      </p>
     </div>
   </dialog>
 
