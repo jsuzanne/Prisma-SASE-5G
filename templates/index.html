@@ -5859,8 +5859,8 @@
                 let deleteBtn = '';
                 if (isAct) {
                     powerBtn = `
-                        <button onclick="openTrafficModal('${imsi}', '${ip}')" class="px-2.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-xs transition cursor-pointer inline-flex items-center gap-1" title="Generate Live 5G Traffic & Test Prisma SASE Security">
-                            <i data-lucide="activity" class="w-3.5 h-3.5 inline"></i> Traffic
+                        <button onclick="openTrafficModal('${imsi}', '${ip}')" class="h-7 px-2.5 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-xs transition cursor-pointer inline-flex items-center justify-center gap-1" title="Generate Live 5G Traffic & Test Prisma SASE Security">
+                            <i data-lucide="activity" class="w-3.5 h-3.5"></i> Traffic
                         </button>
                         <button onclick="handleQuickDetachSim('${imsi}')" class="w-7 h-7 rounded-lg bg-rose-500/15 hover:bg-rose-500/35 text-rose-400 border border-rose-500/30 transition cursor-pointer inline-flex items-center justify-center" title="Power Off — Stop 5G Radio & Release Session">
                             <i data-lucide="power" class="w-3.5 h-3.5"></i>
@@ -5868,32 +5868,34 @@
                     `;
                 } else if (isStart) {
                     powerBtn = `
-                        <button disabled class="px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-300 border border-amber-500/30 text-xs inline-flex items-center gap-1 opacity-80 cursor-wait">
+                        <button disabled class="h-7 px-2.5 rounded-lg bg-amber-500/10 text-amber-300 border border-amber-500/30 text-xs inline-flex items-center justify-center gap-1 opacity-80 cursor-wait">
                             <i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i> Booting...
                         </button>
                     `;
                 } else {
                     powerBtn = `
-                        <button onclick="handleQuickAttachSim('${imsi}')" class="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 text-xs transition cursor-pointer inline-flex items-center gap-1" title="Power On — Boot 5G Radio & Register to SCM">
-                            <i data-lucide="zap" class="w-3.5 h-3.5 inline"></i> Power On
+                        <button onclick="handleQuickAttachSim('${imsi}')" class="h-7 px-2.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 text-xs transition cursor-pointer inline-flex items-center justify-center gap-1" title="Power On — Boot 5G Radio & Register to SCM">
+                            <i data-lucide="zap" class="w-3.5 h-3.5"></i> Power On
                         </button>
                     `;
                     deleteBtn = `
-                        <button onclick="handleDeleteSIM('${identityId}', '${imsi}')" class="px-2 py-1 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs transition cursor-pointer" title="Delete SIM (Deprovision from 5G Core & SCM)">
-                            <i data-lucide="trash-2" class="w-3.5 h-3.5 inline"></i>
+                        <button onclick="handleDeleteSIM('${identityId}', '${imsi}')" class="w-7 h-7 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs transition cursor-pointer inline-flex items-center justify-center" title="Delete SIM (Deprovision from 5G Core & SCM)">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                         </button>
                     `;
                 }
 
                 return `
-                    <button onclick="openUeLogsModal('${imsi}')" class="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs transition cursor-pointer inline-flex items-center gap-1" title="Inspect Dual Open5GS Core & UERANSIM Radio Logs">
-                        <i data-lucide="split" class="w-3.5 h-3.5"></i> 5G Logs
-                    </button>
-                    <button onclick="openEditSimModal('${identityId}')" class="px-2.5 py-1 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 text-xs transition" title="Edit 5G Identity & Metadata">
-                        <i data-lucide="edit-3" class="w-3.5 h-3.5 inline"></i> Edit
-                    </button>
-                    ${powerBtn}
-                    ${deleteBtn}
+                    <div class="inline-flex items-center justify-end gap-1.5">
+                        <button onclick="openUeLogsModal('${imsi}')" class="h-7 px-2.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs transition cursor-pointer inline-flex items-center justify-center gap-1" title="Inspect Dual Open5GS Core & UERANSIM Radio Logs">
+                            <i data-lucide="split" class="w-3.5 h-3.5"></i> 5G Logs
+                        </button>
+                        <button onclick="openEditSimModal('${identityId}')" class="h-7 px-2.5 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 text-xs transition cursor-pointer inline-flex items-center justify-center gap-1" title="Edit 5G Identity & Metadata">
+                            <i data-lucide="edit-3" class="w-3.5 h-3.5"></i> Edit
+                        </button>
+                        ${powerBtn}
+                        ${deleteBtn}
+                    </div>
                 `;
             };
 
