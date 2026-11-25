@@ -6,7 +6,8 @@
   <title>Stigix 5G Lab — Launchpad</title>
   <meta name="description" content="Launchpad for the Stigix 5G Lab: Open5GS Packet Core, UERANSIM RAN, Palo Alto Networks Prisma SASE 5G (SPI), and Stigix L4/L7 Traffic Validation.">
   <link rel="icon" type="image/png" href="assets/stigix-favicon.png">
-  <link rel="stylesheet" href="style.css?v=5">
+  <link id="css-unslop" rel="stylesheet" href="style.css?v=6">
+  <link id="css-slop" rel="stylesheet" href="style-slop.css?v=5" disabled>
 </head>
 <body>
 
@@ -37,16 +38,36 @@
   ══════════════════════════════════════════════════════════ -->
   <main class="container">
 
-    <!-- Compact Hero -->
+    <!-- Hero -->
     <header class="hero">
-      <div class="hero__badge">
-        <span class="hero__dot" aria-hidden="true"></span>
-        <span>Open5GS Core · UERANSIM RAN · Prisma SASE 5G (SPI) · Stigix V3</span>
+      <div class="hero__intro">
+        <div class="hero__badge">
+          <span class="hero__dot" aria-hidden="true"></span>
+          <span>Open5GS Core · UERANSIM RAN · Prisma SASE 5G (SPI) · Stigix V3</span>
+        </div>
+        <h1 class="hero__title">Stigix 5G Lab <em>Launchpad</em></h1>
+        <p class="hero__sub">
+          Orchestrate emulated 5G devices across the RAN and Core VMs, enforce SIM-based Zero-Trust policies over SPI, and validate L4/L7 traffic
+        </p>
       </div>
-      <h1 class="hero__title">Stigix 5G Lab <em>Launchpad</em></h1>
-      <p class="hero__sub">
-        Orchestrate emulated 5G devices across the RAN &amp; Core VMs, enforce SIM-based Zero-Trust policies over SPI, and validate L4/L7 traffic.
-      </p>
+      <div class="hero__specs" aria-label="Lab stack summary">
+        <div class="hero__spec">
+          <span class="hero__spec-k">5G Core</span>
+          <span class="hero__spec-v">Open5GS · VM 2</span>
+        </div>
+        <div class="hero__spec">
+          <span class="hero__spec-k">Radio Access</span>
+          <span class="hero__spec-v">UERANSIM · VM 1</span>
+        </div>
+        <div class="hero__spec">
+          <span class="hero__spec-k">Security</span>
+          <span class="hero__spec-v">Prisma SASE 5G (SPI)</span>
+        </div>
+        <div class="hero__spec">
+          <span class="hero__spec-k">Traffic Engine</span>
+          <span class="hero__spec-v">Stigix V3 · uesimtun*</span>
+        </div>
+      </div>
     </header>
 
     <!-- ──────────────────────────────────────────────────────
@@ -142,7 +163,7 @@
       <div class="sec-head">
         <h2 class="sec-title" id="sec-architecture">End-to-End 5G SASE Architecture &amp; VM Interactions</h2>
         <span class="sec-hint">
-          Powered by <a href="https://github.com/aligungr/UERANSIM" target="_blank" rel="noopener noreferrer" style="color:var(--teal);text-decoration:underline;">UERANSIM ↗</a> &amp; <a href="https://github.com/open5gs/open5gs" target="_blank" rel="noopener noreferrer" style="color:var(--cyan);text-decoration:underline;">Open5GS ↗</a> · Click any node for details
+          Powered by <a href="https://github.com/aligungr/UERANSIM" target="_blank" rel="noopener noreferrer">UERANSIM ↗</a> &amp; <a href="https://github.com/open5gs/open5gs" target="_blank" rel="noopener noreferrer">Open5GS ↗</a> · Click any node for details
         </span>
       </div>
 
@@ -246,10 +267,10 @@
             <rect x="586" y="106" width="144" height="18" rx="4" fill="#0b1018" stroke="#1e293b"/>
             <text x="658" y="118" fill="#18c9ae" font-size="9" text-anchor="middle" class="mono">Mongo :27017 · SMF :9090</text>
 
-            <!-- Drop 3 (AAA Signaling with Lock) to Prisma SASE 5G -->
+            <!-- Drop 3 (AAA Signaling) to Prisma SASE 5G -->
             <line x1="975" y1="92" x2="975" y2="144" stroke="#00d4ff" stroke-width="1.5" stroke-dasharray="4 4" class="flow-api" marker-end="url(#arrow-cyan)"/>
             <rect x="910" y="106" width="130" height="18" rx="4" fill="#0b1018" stroke="#00d4ff" stroke-opacity="0.4"/>
-            <text x="975" y="118" fill="#00d4ff" font-size="9" text-anchor="middle" class="mono">🔒 AAA / IP Binding</text>
+            <text x="975" y="118" fill="#00d4ff" font-size="9" text-anchor="middle" class="mono" data-unslop-text="AAA / IP Binding" data-slop-text="🔒 AAA / IP Binding">AAA / IP Binding</text>
 
 
             <!-- ═══════════════════════════════════════════════════════
@@ -269,19 +290,19 @@
 
               <!-- 4 Traffic Modules stacked cleanly -->
               <rect x="38" y="244" width="134" height="48" rx="6" fill="#0b111a" stroke="#223044"/>
-              <text x="105" y="263" fill="#ffffff" font-size="9.5" font-weight="700" text-anchor="middle" class="mono">① SaaS &amp; HTTP/S</text>
+              <text x="105" y="263" fill="#ffffff" font-size="9.5" font-weight="700" text-anchor="middle" class="mono" data-unslop-text="01 SaaS &amp; HTTP/S" data-slop-text="① SaaS &amp; HTTP/S">01 SaaS &amp; HTTP/S</text>
               <text x="105" y="278" fill="#7c8ea6" font-size="8.2" text-anchor="middle" class="mono">Enterprise App Traffic</text>
 
               <rect x="38" y="300" width="134" height="48" rx="6" fill="#0b111a" stroke="#223044"/>
-              <text x="105" y="319" fill="#ffffff" font-size="9.5" font-weight="700" text-anchor="middle" class="mono">② Voice RTP &amp; IoT</text>
+              <text x="105" y="319" fill="#ffffff" font-size="9.5" font-weight="700" text-anchor="middle" class="mono" data-unslop-text="02 Voice RTP &amp; IoT" data-slop-text="② Voice RTP &amp; IoT">02 Voice RTP &amp; IoT</text>
               <text x="105" y="334" fill="#7c8ea6" font-size="8.2" text-anchor="middle" class="mono">MOS · Modbus · MQTT · RTSP</text>
 
               <rect x="38" y="356" width="134" height="48" rx="6" fill="#0b111a" stroke="#223044"/>
-              <text x="105" y="375" fill="#ffffff" font-size="9.5" font-weight="700" text-anchor="middle" class="mono">③ Threat &amp; C2 Audit</text>
+              <text x="105" y="375" fill="#ffffff" font-size="9.5" font-weight="700" text-anchor="middle" class="mono" data-unslop-text="03 Threat &amp; C2 Audit" data-slop-text="③ Threat &amp; C2 Audit">03 Threat &amp; C2 Audit</text>
               <text x="105" y="390" fill="#7c8ea6" font-size="8.2" text-anchor="middle" class="mono">EICAR · DNS · URL · DLP</text>
 
               <rect x="38" y="412" width="134" height="56" rx="6" fill="#0b111a" stroke="#00d4ff" stroke-opacity="0.35"/>
-              <text x="105" y="432" fill="#00d4ff" font-size="9.5" font-weight="700" text-anchor="middle" class="mono">④ Web Wireshark</text>
+              <text x="105" y="432" fill="#00d4ff" font-size="9.5" font-weight="700" text-anchor="middle" class="mono" data-unslop-text="04 Web Wireshark" data-slop-text="④ Web Wireshark">04 Web Wireshark</text>
               <text x="105" y="446" fill="#cbd5e1" font-size="8.2" text-anchor="middle" class="mono">Live Capture on uesimtun*</text>
               <text x="105" y="459" fill="#7c8ea6" font-size="7.8" text-anchor="middle" class="mono">&amp; Stateful PCAP Replay</text>
             </g>
@@ -590,8 +611,11 @@
           </div>
 
           <footer>
-            <span class="qs-badge">Status: Offline (Provisioned)</span>
-            <button type="button" class="btn-watch btn-watch--amber" data-dialog-target="modal-qs-step1">▶ Watch Demo</button>
+            <span class="qs-badge" data-unslop-text="Offline · provisioned" data-slop-text="Status: Offline (Provisioned)">Offline · provisioned</span>
+            <button type="button" class="btn-watch btn-watch--amber" data-dialog-target="modal-qs-step1">
+              <svg class="btn-watch__icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="5 3.5 12.5 8 5 12.5 5 3.5"/></svg>
+              <span>Watch demo</span>
+            </button>
           </footer>
         </article>
 
@@ -609,7 +633,7 @@
 
           <div class="launch-card__body">
             <p class="launch-card__desc">
-              Click <strong>⚡ Power On</strong> on the SIM row. Spawns a real <code>nr-ue</code> modem on VM 1, authenticates over <strong>N2/N3</strong>, allocates a dynamic <code>10.45.0.X</code> IP on <code>uesimtunX</code>, and pushes the live IP binding to <strong>SCM</strong>.
+              Click <strong data-unslop-text="Power On" data-slop-text="⚡ Power On">Power On</strong> on the SIM row. Spawns a real <code>nr-ue</code> modem on VM 1, authenticates over <strong>N2/N3</strong>, allocates a dynamic <code>10.45.0.X</code> IP on <code>uesimtunX</code>, and pushes the live IP binding to <strong>SCM</strong>.
             </p>
             <div class="chip-row">
               <span class="chip">uesimtunX Created</span>
@@ -619,8 +643,11 @@
           </div>
 
           <footer>
-            <span class="qs-badge qs-badge--teal">Status: Active · 10.45.0.X</span>
-            <button type="button" class="btn-watch btn-watch--teal" data-dialog-target="modal-qs-step2">▶ Watch Demo</button>
+            <span class="qs-badge qs-badge--teal" data-unslop-text="Active · 10.45.0.x" data-slop-text="Status: Active · 10.45.0.X">Active · 10.45.0.x</span>
+            <button type="button" class="btn-watch btn-watch--teal" data-dialog-target="modal-qs-step2">
+              <svg class="btn-watch__icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="5 3.5 12.5 8 5 12.5 5 3.5"/></svg>
+              <span>Watch demo</span>
+            </button>
           </footer>
         </article>
 
@@ -649,8 +676,11 @@
           </div>
 
           <footer>
-            <span class="qs-badge qs-badge--cyan">Zero-Trust Enforced over SPI</span>
-            <button type="button" class="btn-watch btn-watch--cyan" data-dialog-target="modal-qs-step3">▶ Watch Demo</button>
+            <span class="qs-badge qs-badge--cyan" data-unslop-text="Enforced over SPI" data-slop-text="Zero-Trust Enforced over SPI">Enforced over SPI</span>
+            <button type="button" class="btn-watch btn-watch--cyan" data-dialog-target="modal-qs-step3">
+              <svg class="btn-watch__icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="5 3.5 12.5 8 5 12.5 5 3.5"/></svg>
+              <span>Watch demo</span>
+            </button>
           </footer>
         </article>
       </div>
@@ -823,14 +853,14 @@
     <div class="modal__inner">
       <div class="modal__head">
         <div>
-          <div class="modal__tag" style="color:var(--amber);">STEP 01 · PROVISION IDENTITY</div>
+          <div class="modal__tag">Step 01 · Provision identity</div>
           <h2 class="modal__title" id="title-qs-step1">Create 5G SIM Card in Orchestrator</h2>
         </div>
         <form method="dialog"><button type="submit" class="modal__close" autofocus>ESC</button></form>
       </div>
       <img src="assets/step1-add-sim.gif" alt="Step 1: Registering a new 5G SIM card" width="1920" height="1080" class="modal__video-img">
       <p class="modal__lead">
-        Click <strong>+ Add New SIM</strong>, select a 1-click industry preset (e.g. <em>Avionics iPad</em> or <em>Retail POS</em>), and click <strong>Create SIM</strong> to provision the subscriber in <strong>Prisma SASE 5G (SCM)</strong> and <strong>Open5GS MongoDB</strong>.
+        Click <strong>+ Add New SIM</strong>, select a 1-click industry preset (e.g. Avionics iPad or Retail POS), and click <strong>Create SIM</strong> to provision the subscriber in <strong>Prisma SASE 5G (SCM)</strong> and <strong>Open5GS MongoDB</strong>.
       </p>
     </div>
   </dialog>
@@ -840,14 +870,14 @@
     <div class="modal__inner">
       <div class="modal__head">
         <div>
-          <div class="modal__tag">STEP 02 · ATTACH 5G RADIO</div>
+          <div class="modal__tag">Step 02 · Attach 5G radio</div>
           <h2 class="modal__title" id="title-qs-step2">Power On 5G Device &amp; Allocate Dynamic IP</h2>
         </div>
         <form method="dialog"><button type="submit" class="modal__close" autofocus>ESC</button></form>
       </div>
       <img src="assets/step2-power-on.gif" alt="Step 2: Powering on the 5G SIM and attaching to Open5GS" width="1920" height="1080" class="modal__video-img">
       <p class="modal__lead">
-        Click <strong>⚡ Power On</strong> on the SIM row to spawn its <code>nr-ue</code> radio process on VM 1, establish the N2/N3 PDU session with the Open5GS Core, bring up its dedicated <code>uesimtunX</code> interface (<code>10.45.0.X</code>), and bind the live IP in <strong>SCM</strong>.
+        Click <strong data-unslop-text="Power On" data-slop-text="⚡ Power On">Power On</strong> on the SIM row to spawn its <code>nr-ue</code> radio process on VM 1, establish the N2/N3 PDU session with the Open5GS Core, bring up its dedicated <code>uesimtunX</code> interface (<code>10.45.0.X</code>), and bind the live IP in <strong>SCM</strong>.
       </p>
     </div>
   </dialog>
@@ -857,7 +887,7 @@
     <div class="modal__inner">
       <div class="modal__head">
         <div>
-          <div class="modal__tag" style="color:var(--cyan);">STEP 03 · VALIDATE DATA PLANE</div>
+          <div class="modal__tag">Step 03 · Validate data plane</div>
           <h2 class="modal__title" id="title-qs-step3">Generate Live 5G Traffic (HTTP &amp; Ping 8.8.8.8)</h2>
         </div>
         <form method="dialog"><button type="submit" class="modal__close" autofocus>ESC</button></form>
@@ -869,6 +899,12 @@
     </div>
   </dialog>
 
-  <script src="script.js"></script>
+  <!-- Unslop vs Slop Live Comparison Switcher -->
+  <div class="mode-switcher" role="group" aria-label="Compare UI mode">
+    <button type="button" class="mode-switcher__btn" data-set-mode="unslop" aria-pressed="true">Unslop</button>
+    <button type="button" class="mode-switcher__btn" data-set-mode="slop" aria-pressed="false">Slop (before)</button>
+  </div>
+
+  <script src="script.js?v=2"></script>
 </body>
 </html>
