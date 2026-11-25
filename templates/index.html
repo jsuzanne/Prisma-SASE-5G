@@ -12,7 +12,7 @@
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -52,6 +52,11 @@
                 } else {
                     document.documentElement.classList.remove('light');
                     document.documentElement.classList.add('dark');
+                }
+                const urlUi = new URLSearchParams(window.location.search).get('ui');
+                const savedUi = urlUi || localStorage.getItem('prisma_5g_ui_mode') || 'unslop';
+                if (savedUi !== 'slop') {
+                    document.documentElement.classList.add('unslop');
                 }
             } catch(e) {}
         })();
@@ -1453,6 +1458,362 @@
         html.light #modal-session .bg-gray-900\/40 {
             background-color: #ffffff !important;
             border: 1px solid #cbd5e1 !important;
+        }
+
+        /* ==========================================================================
+           UNSLOP MODE — Graphite Neutral Ramp, Restraint & Single PANW Accent
+           ========================================================================== */
+        #unslop-switcher {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 60;
+            display: inline-flex;
+            align-items: center;
+            gap: 2px;
+            padding: 4px;
+            border-radius: 10px;
+            background: #19191b;
+            border: 1px solid rgba(237, 237, 237, 0.16);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+            font-family: 'JetBrains Mono', monospace;
+        }
+        #unslop-switcher button {
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 500;
+            line-height: 1.2;
+            color: #a1a1a6;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            transition: background-color 150ms cubic-bezier(0.22, 1, 0.36, 1), color 150ms cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        #unslop-switcher button:hover {
+            color: #ededed;
+        }
+        #unslop-switcher button[aria-pressed="true"] {
+            background: #ededed;
+            color: #141415;
+        }
+        html.light #unslop-switcher {
+            background: #f4f4f5;
+            border-color: rgba(23, 23, 23, 0.12);
+        }
+        html.light #unslop-switcher button {
+            color: #525252;
+        }
+        html.light #unslop-switcher button[aria-pressed="true"] {
+            background: #171717;
+            color: #ffffff;
+        }
+
+        /* 1. Surfaces, Graphite Ramp & Hairlines (Dark) */
+        html.unslop body {
+            font-family: 'IBM Plex Sans', system-ui, -apple-system, sans-serif !important;
+            background: #141415 !important;
+            background-image: none !important;
+            color: #ededed !important;
+        }
+        html.unslop .glass-panel {
+            background: #19191b !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+            border: 1px solid rgba(237, 237, 237, 0.08) !important;
+            box-shadow: none !important;
+            transition: background-color 150ms cubic-bezier(0.22, 1, 0.36, 1), border-color 150ms cubic-bezier(0.22, 1, 0.36, 1) !important;
+        }
+        html.unslop .glass-panel-hover:hover,
+        html.unslop #summary-sub-overview .glass-panel:hover {
+            border-color: rgba(237, 237, 237, 0.14) !important;
+            box-shadow: none !important;
+        }
+        html.unslop header.glass-panel {
+            background: rgba(20, 20, 21, 0.94) !important;
+            border-top: none !important;
+            border-left: none !important;
+            border-right: none !important;
+            border-bottom: 1px solid rgba(237, 237, 237, 0.08) !important;
+        }
+
+        /* Graphite Light Ramp when Light + Unslop */
+        html.unslop.light body {
+            background: #fafafa !important;
+            color: #171717 !important;
+        }
+        html.unslop.light .glass-panel {
+            background: #ffffff !important;
+            border-color: rgba(23, 23, 23, 0.08) !important;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+        }
+        html.unslop.light header.glass-panel {
+            background: rgba(250, 250, 250, 0.94) !important;
+            border-bottom-color: rgba(23, 23, 23, 0.08) !important;
+        }
+
+        /* 2. Remove Glowing Gradients, Shadows & Neon Pills */
+        html.unslop .glow-cyan,
+        html.unslop .glow-panw {
+            box-shadow: none !important;
+        }
+        html.unslop header .bg-gradient-to-tr {
+            background: #FA582D !important;
+            background-image: none !important;
+            border-radius: 8px !important;
+            box-shadow: none !important;
+        }
+        html.unslop header h1 {
+            background: none !important;
+            -webkit-background-clip: initial !important;
+            background-clip: initial !important;
+            color: #ededed !important;
+            font-weight: 500 !important;
+            letter-spacing: -0.015em !important;
+        }
+        html.unslop.light header h1 {
+            color: #171717 !important;
+        }
+        html.unslop header h1 span.rounded-full {
+            background: #232325 !important;
+            color: #a1a1a6 !important;
+            border: 1px solid rgba(237, 237, 237, 0.08) !important;
+            border-radius: 6px !important;
+            font-weight: 400 !important;
+        }
+        html.unslop.light header h1 span.rounded-full {
+            background: #f4f4f5 !important;
+            color: #525252 !important;
+            border-color: rgba(23, 23, 23, 0.08) !important;
+        }
+        html.unslop #header-partner-badge {
+            background: #19191b !important;
+            border-color: rgba(237, 237, 237, 0.08) !important;
+            border-radius: 8px !important;
+            box-shadow: none !important;
+        }
+        html.unslop #header-partner-name {
+            font-weight: 500 !important;
+            color: #ededed !important;
+        }
+        html.unslop #header-partner-subtitle {
+            color: #85858b !important;
+        }
+
+        /* 3. Quiet Navigation Bar & Uniform Muted Icons */
+        html.unslop header nav.glass-panel {
+            background: #141415 !important;
+            border-radius: 10px !important;
+            padding: 3px !important;
+        }
+        html.unslop header nav .tab-btn {
+            font-weight: 500 !important;
+            border-radius: 7px !important;
+            color: #a1a1a6 !important;
+        }
+        html.unslop header nav .tab-btn:hover {
+            color: #ededed !important;
+            background: rgba(237, 237, 237, 0.05) !important;
+        }
+        html.unslop header nav .tab-btn.bg-white\/10 {
+            background: #232325 !important;
+            color: #ededed !important;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+        }
+        html.unslop header nav .tab-btn svg,
+        html.unslop header nav .tab-btn i {
+            color: #85858b !important;
+            stroke-width: 1.5 !important;
+        }
+        html.unslop header nav .tab-btn.bg-white\/10 svg,
+        html.unslop header nav .tab-btn.bg-white\/10 i {
+            color: #ededed !important;
+        }
+
+        /* Quiet top bar utility buttons */
+        html.unslop header a[href*="stratacloudmanager"],
+        html.unslop header button:not(#unslop-switcher button):not(.tab-btn),
+        html.unslop #status-pill {
+            background: #19191b !important;
+            border: 1px solid rgba(237, 237, 237, 0.08) !important;
+            border-radius: 8px !important;
+            color: #a1a1a6 !important;
+            font-weight: 500 !important;
+            box-shadow: none !important;
+        }
+        html.unslop header a[href*="stratacloudmanager"]:hover,
+        html.unslop header button:not(#unslop-switcher button):not(.tab-btn):hover,
+        html.unslop #status-pill:hover {
+            background: #232325 !important;
+            border-color: rgba(237, 237, 237, 0.16) !important;
+            color: #ededed !important;
+        }
+        html.unslop header a[href*="stratacloudmanager"] svg,
+        html.unslop header button:not(#unslop-switcher button):not(.tab-btn) svg {
+            color: #85858b !important;
+            stroke-width: 1.5 !important;
+        }
+        html.unslop #status-pill-dot {
+            background-color: #4cc38a !important;
+        }
+        html.unslop #status-text {
+            color: #ededed !important;
+        }
+
+        /* 4. Kill Looping Pulse / Ping Motion */
+        html.unslop .animate-pulse,
+        html.unslop .animate-ping {
+            animation: none !important;
+        }
+        html.unslop #sync-beacon-ping {
+            display: none !important;
+        }
+
+        /* 5. Typography: Weights 400-500, Sentence Case, Tabular Figures, No Italic */
+        html.unslop h2,
+        html.unslop h3,
+        html.unslop h4 {
+            font-weight: 500 !important;
+            letter-spacing: -0.015em !important;
+            color: #ededed !important;
+        }
+        html.unslop.light h2,
+        html.unslop.light h3,
+        html.unslop.light h4 {
+            color: #171717 !important;
+        }
+        html.unslop .uppercase.tracking-wider {
+            text-transform: none !important;
+            letter-spacing: 0 !important;
+            font-weight: 500 !important;
+            color: #85858b !important;
+        }
+        html.unslop .italic {
+            font-style: normal !important;
+        }
+        html.unslop #kpi-total-tenants,
+        html.unslop #kpi-total-bandwidth,
+        html.unslop #kpi-total-users,
+        html.unslop #kpi-total-interconnects,
+        html.unslop #overview-configured-ues,
+        html.unslop #overview-registered-ues,
+        html.unslop #overview-unknown-ues {
+            font-weight: 500 !important;
+            font-variant-numeric: tabular-nums !important;
+            letter-spacing: -0.025em !important;
+        }
+
+        /* 6. Consistent Nested Radii & Hierarchy Bar Controls */
+        html.unslop .rounded-2xl {
+            border-radius: 12px !important;
+        }
+        html.unslop main .rounded-xl {
+            border-radius: 8px !important;
+        }
+        html.unslop main select,
+        html.unslop #sync-status-container {
+            background: #232325 !important;
+            border: 1px solid rgba(237, 237, 237, 0.08) !important;
+            color: #ededed !important;
+            font-weight: 400 !important;
+        }
+        html.unslop main select:hover,
+        html.unslop #sync-status-container:hover {
+            border-color: rgba(237, 237, 237, 0.16) !important;
+        }
+        html.unslop #default-apn-badge {
+            color: #ededed !important;
+            font-weight: 500 !important;
+        }
+
+        /* 7. Summary Header, Subnav & Quiet Badges */
+        html.unslop #tab-summary h2 > span.rounded-full {
+            background: #232325 !important;
+            color: #a1a1a6 !important;
+            border: 1px solid rgba(237, 237, 237, 0.08) !important;
+            border-radius: 6px !important;
+            font-weight: 400 !important;
+        }
+        html.unslop #summary-last-updated-badge {
+            background: transparent !important;
+            color: #85858b !important;
+            padding-left: 0 !important;
+        }
+        html.unslop #summary-last-updated-badge svg {
+            color: #85858b !important;
+        }
+        html.unslop .summary-subnav-btn {
+            border-radius: 8px !important;
+            font-weight: 500 !important;
+            color: #85858b !important;
+        }
+        html.unslop .summary-subnav-btn:hover {
+            color: #ededed !important;
+            background: rgba(237, 237, 237, 0.05) !important;
+        }
+        html.unslop .summary-subnav-btn.bg-white\/10 {
+            background: #232325 !important;
+            color: #ededed !important;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+        }
+
+        /* 8. KPI Cards & Bottom Widgets */
+        html.unslop #summary-sub-overview .text-xs.font-semibold.text-gray-400 {
+            font-weight: 400 !important;
+            color: #a1a1a6 !important;
+        }
+        html.unslop #summary-sub-overview .text-emerald-400 {
+            color: #4cc38a !important;
+        }
+        html.unslop #summary-sub-overview h3 svg,
+        html.unslop #summary-sub-overview h4 svg {
+            color: #85858b !important;
+            stroke-width: 1.5 !important;
+        }
+        html.unslop #summary-sub-overview .bg-white\/5.rounded-xl {
+            background: #141415 !important;
+            border: 1px solid rgba(237, 237, 237, 0.06) !important;
+            border-radius: 8px !important;
+        }
+        html.unslop #summary-sub-overview button.text-cyan-400 {
+            color: #a1a1a6 !important;
+        }
+        html.unslop #summary-sub-overview button.text-cyan-400:hover {
+            color: #ededed !important;
+        }
+
+        /* 9. Throughput Trend Legend & Tooltip in Unslop */
+        html.unslop #legend-btn-egress {
+            color: #ededed !important;
+        }
+        html.unslop #legend-btn-egress > span {
+            background: #FA582D !important;
+            box-shadow: none !important;
+        }
+        html.unslop #legend-btn-ingress {
+            color: #a1a1a6 !important;
+        }
+        html.unslop #legend-btn-ingress > span {
+            background: #a1a1a6 !important;
+            box-shadow: none !important;
+        }
+        html.unslop #chart-tooltip {
+            background: #19191b !important;
+            border: 1px solid rgba(237, 237, 237, 0.14) !important;
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5) !important;
+            border-radius: 10px !important;
+        }
+        html.unslop #chart-tooltip .text-purple-400 {
+            color: #FA582D !important;
+        }
+        html.unslop #chart-tooltip .bg-purple-400 {
+            background-color: #FA582D !important;
+        }
+        html.unslop #chart-tooltip .text-cyan-400 {
+            color: #a1a1a6 !important;
+        }
+        html.unslop #chart-tooltip .bg-cyan-400 {
+            background-color: #a1a1a6 !important;
         }
     </style>
 </head>
@@ -4671,6 +5032,67 @@
             applyTheme(targetTheme);
             showToast("Theme Updated", `Switched to ${targetTheme === 'dark' ? 'Dark Mode' : 'Light Mode'}`);
         }
+
+        /* ── Unslop vs Slop Live Mode Switcher ── */
+        function applyUnslopChartPalette(isUnslop) {
+            const egressLine = document.getElementById('egress-line');
+            const ingressLine = document.getElementById('ingress-line');
+            const dotEgress = document.getElementById('crosshair-dot-egress');
+            const dotIngress = document.getElementById('crosshair-dot-ingress');
+            const egressGrad = document.getElementById('egressGradient');
+            const ingressGrad = document.getElementById('ingressGradient');
+
+            const egressColor = isUnslop ? '#FA582D' : '#A855F7';
+            const egressFill = isUnslop ? '#FA582D' : '#8A2BE2';
+            const egressOpacity = isUnslop ? '0.20' : '0.55';
+            const ingressColor = isUnslop ? '#a1a1a6' : '#00E5FF';
+            const ingressOpacity = isUnslop ? '0.10' : '0.45';
+
+            if (egressLine) {
+                egressLine.setAttribute('stroke', egressColor);
+                egressLine.setAttribute('stroke-width', isUnslop ? '2' : '2.5');
+            }
+            if (ingressLine) {
+                ingressLine.setAttribute('stroke', ingressColor);
+                ingressLine.setAttribute('stroke-width', isUnslop ? '1.5' : '2.5');
+            }
+            if (dotEgress) dotEgress.setAttribute('fill', egressColor);
+            if (dotIngress) dotIngress.setAttribute('fill', ingressColor);
+
+            if (egressGrad && egressGrad.children.length >= 2) {
+                egressGrad.children[0].setAttribute('stop-color', egressFill);
+                egressGrad.children[0].setAttribute('stop-opacity', egressOpacity);
+                egressGrad.children[1].setAttribute('stop-color', egressFill);
+            }
+            if (ingressGrad && ingressGrad.children.length >= 2) {
+                ingressGrad.children[0].setAttribute('stop-color', ingressColor);
+                ingressGrad.children[0].setAttribute('stop-opacity', ingressOpacity);
+                ingressGrad.children[1].setAttribute('stop-color', ingressColor);
+            }
+        }
+
+        function setUnslopMode(enabled, notify = true) {
+            const isUnslop = Boolean(enabled);
+            document.documentElement.classList.toggle('unslop', isUnslop);
+            try {
+                localStorage.setItem('prisma_5g_ui_mode', isUnslop ? 'unslop' : 'slop');
+            } catch (e) {}
+
+            const btnUnslop = document.getElementById('btn-mode-unslop');
+            const btnSlop = document.getElementById('btn-mode-slop');
+            if (btnUnslop) btnUnslop.setAttribute('aria-pressed', isUnslop ? 'true' : 'false');
+            if (btnSlop) btnSlop.setAttribute('aria-pressed', isUnslop ? 'false' : 'true');
+
+            applyUnslopChartPalette(isUnslop);
+            if (notify && typeof showToast === 'function') {
+                showToast('UI Mode', isUnslop ? 'Switched to Unslop mode' : 'Switched to original Slop mode');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const isUnslop = document.documentElement.classList.contains('unslop');
+            setUnslopMode(isUnslop, false);
+        });
 
         // Helper: Convert HEX to RGBA string
         function hexToRgba(hex, alpha = 1) {
@@ -9548,5 +9970,11 @@
             }, 6000);
         });
     </script>
+    <!-- Unslop vs Slop Live Comparison Switcher (Fixed Bottom-Right) -->
+    <div id="unslop-switcher" role="group" aria-label="Compare Unslop vs Slop UI" title="Switch between Unslop and original Slop UI">
+        <button type="button" id="btn-mode-unslop" onclick="setUnslopMode(true)" aria-pressed="true">Unslop</button>
+        <button type="button" id="btn-mode-slop" onclick="setUnslopMode(false)" aria-pressed="false">Slop (before)</button>
+    </div>
+
 </body>
 </html>
