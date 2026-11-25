@@ -385,8 +385,19 @@ em {
   outline-offset: 2px;
 }
 
-.launch-card:has(a.card-link:hover) {
+.launch-card:has(a.card-link:hover),
+.launch-card:hover {
   background: var(--bg-card-h);
+  border-color: var(--border-hi);
+}
+
+.qs-grid .launch-card {
+  cursor: pointer;
+}
+
+.qs-grid .launch-card:hover .btn-watch {
+  color: var(--text);
+  background: var(--bg-raised-h);
   border-color: var(--border-hi);
 }
 
